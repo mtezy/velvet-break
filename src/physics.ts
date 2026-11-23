@@ -5,11 +5,21 @@ export const POCKETS = [
   { x: 600, y: 578, name: 'bottom-middle' }, { x: 1110, y: 570, name: 'bottom-right' },
 ];
 export const BALL_COLORS = ['#f7f6ee', '#f5c343', '#528afa', '#ee686d', '#ac7eec', '#f29951', '#39c5a0', '#d1548f', '#262b36', '#f5c343', '#528afa', '#ee686d', '#ac7eec', '#f29951', '#39c5a0', '#d1548f'];
-export interface Ball { id: number; x: number; y: number; vx: number; vy: number; active: boolean; banks: number; trail: {x: number; y: number}[] }
+export interface Spin { x:number; y:number }
+export function validSpin(value:unknown):value is Spin {
+  if(!value||typeof value!=='object')return false;
+  const s=value as Spin;return Number.isFinite(s.x)&&Number.isFinite(s.y)&&Math.abs(s.x)<=1&&Math.abs(s.y)<=1&&Math.hypot(s.x,s.y)<=1+1e-12;
+}
+export function clampSpin(spin:Spin):Spin {
+  const x=Number.isFinite(spin.x)?Math.max(-1,Math.min(1,spin.x)):0,y=Number.isFinite(spin.y)?Math.max(-1,Math.min(1,spin.y)):0;
+  const scale=Math.max(1,Math.hypot(x,y));return {x:x/scale,y:y/scale};
+}
+export interface Ball { id: number; x: number; y: number; vx: number; vy: number; active: boolean; banks: number; trail: {x: number; y: number}[]; spin?:Spin; spinContact?:boolean }
 export interface PhysicsEvent { type: 'pot' | 'rail' | 'collision'; ball: Ball; otherBall?:Ball; pocket?: number; speed: number }
-export function ball(id: number, x: number, y: number): Ball { return { id, x, y, vx: 0, vy: 0, active: true, banks: 0, trail: [] }; }
+export function ball(id: number, x: number, y: number): Ball { return { id, x, y, vx: 0, vy: 0, active: true, banks: 0, trail: [], spin:{x:0,y:0}, spinContact:false }; }
 export function moving(balls: Ball[]) { return balls.some(b => b.active && Math.hypot(b.vx, b.vy) > 0); }
-export function strike(cue: Ball, angle: number, power: number) {
+export function strike(cue: Ball, angle: number, power: number, spin:Spin={x:0,y:0}) {
+  cue.spin=clampSpin(spin);cue.spinContact=false;
   const speed = 180 + Math.max(0, Math.min(1, power)) * 1320;
   cue.vx = Math.cos(angle) * speed; cue.vy = Math.sin(angle) * speed;
 }
@@ -20,9 +30,15 @@ export function simulate(balls: Ball[], dt: number): PhysicsEvent[] {
     if (!b.active) continue;
     b.x += b.vx * dt; b.y += b.vy * dt;
     const speed = Math.hypot(b.vx, b.vy);
+    if(b.id===0&&b.spin){const decay=Math.exp(-dt*(.45+speed/280));b.spin={x:b.spin.x*decay,y:b.spin.y*decay};}
     const pocket = POCKETS.findIndex(p => Math.hypot(b.x - p.x, b.y - p.y) < pocketRadius);
     if (pocket !== -1) { b.active = false; b.vx = b.vy = 0; events.push({type: 'pot', ball: b, pocket, speed}); continue; }
     let hit = false;
+    const english=(nx:number,ny:number)=>{if(b.id!==0||!b.spin?.x)return;const kick=b.spin.x*Math.abs(b.vx*nx+b.vy*ny)*.38;b.vx+=-ny*kick;b.vy+=nx*kick;b.spin.x*=.55;};
+    if(b.x<left+r)english(1,0);
+    if(b.x>right-r)english(-1,0);
+    if(b.y<top+r)english(0,1);
+    if(b.y>bottom-r)english(0,-1);
     if (b.x < left + r) { b.x = left + r; b.vx = Math.abs(b.vx) * .82; hit = true; }
     if (b.x > right - r) { b.x = right - r; b.vx = -Math.abs(b.vx) * .82; hit = true; }
     if (b.y < top + r) { b.y = top + r; b.vy = Math.abs(b.vy) * .82; hit = true; }
@@ -44,8 +60,11 @@ export function simulate(balls: Ball[], dt: number): PhysicsEvent[] {
       a.x -= nx * overlap; a.y -= ny * overlap; b.x += nx * overlap; b.y += ny * overlap;
       const approach = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
       if (approach > 0) {
+        const cue=a.id===0?a:b.id===0?b:undefined;
+        const travel=cue?Math.hypot(cue.vx,cue.vy):0,ux=travel?cue!.vx/travel:0,uy=travel?cue!.vy/travel:0;
         const impulse = approach * .985;
         a.vx -= impulse * nx; a.vy -= impulse * ny; b.vx += impulse * nx; b.vy += impulse * ny;
+        if(cue&&!cue.spinContact){const kick=(cue.spin?.y??0)*approach*.65;cue.vx+=ux*kick;cue.vy+=uy*kick;cue.spinContact=true;if(cue.spin)cue.spin.y=0;}
         events.push({type: 'collision', ball: b, otherBall:a, speed: approach});
       }
     }

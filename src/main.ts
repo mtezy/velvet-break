@@ -1,6 +1,6 @@
 import { og } from '@opengamehq/sdk';
 import { missions, practiceLayout } from './missions.ts';
-import { TABLE, BALL_COLORS } from './physics.ts';
+import { TABLE, BALL_COLORS, clampSpin, type Spin } from './physics.ts';
 import { Session } from './session.ts';
 import { type Particle } from './render.ts';
 import { PoolRenderer } from './three-renderer.ts';
@@ -29,6 +29,17 @@ let pointerId:number|null=null,shotAngle=angle,keys=new Set<string>();
 const fixedStep=1/240;
 let lastHud='',onlineResultShown=false;
 let titleOpen=true,shotPotCount=0;const titleBalls=practiceLayout();
+let spin:Spin={x:0,y:0};
+function setSpin(value:Spin){
+  spin=clampSpin(value);const dot=$('spin-dot');dot.style.left=`${50+spin.x*43}%`;dot.style.top=`${50-spin.y*43}%`;
+  $('spin-value').textContent=Math.hypot(spin.x,spin.y)<.01?'Centre':`${spin.x<0?'L':'R'}${Math.round(Math.abs(spin.x)*100)} ${spin.y<0?'D':'F'}${Math.round(Math.abs(spin.y)*100)}`;
+}
+const spinPicker=$<HTMLButtonElement>('spin-picker');
+function pickSpin(e:PointerEvent){const r=spinPicker.getBoundingClientRect();setSpin({x:(e.clientX-r.left-r.width/2)/(r.width*.43),y:(r.top+r.height/2-e.clientY)/(r.height*.43)});}
+spinPicker.addEventListener('pointerdown',e=>{if(e.button!==0)return;spinPicker.setPointerCapture(e.pointerId);pickSpin(e);});
+spinPicker.addEventListener('pointermove',e=>{if(spinPicker.hasPointerCapture(e.pointerId))pickSpin(e);});
+spinPicker.addEventListener('pointerup',e=>{if(spinPicker.hasPointerCapture(e.pointerId))spinPicker.releasePointerCapture(e.pointerId);});
+$('spin-reset').addEventListener('click',()=>setSpin({x:0,y:0}));
 const currentBalls=()=>online?.active&&online.match?online.match.balls:session.balls;
 const canShoot=()=>!titleOpen&&!renderer.cueInspection&&(online?.active?online.canShoot:session.canShoot);
 function setTitle(value:boolean){
@@ -69,7 +80,7 @@ function loadMission(next:number,free=false){
   cameraRig.close();cueLocker.inspect(false);
   document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;
   if(online?.active)online.leave();
-  cancelCharge();index=next;practice=free;session=new Session(missions[next],free);particles=[];outcomeShown=false;accumulator=0;
+  cancelCharge();setSpin({x:0,y:0});index=next;practice=free;session=new Session(missions[next],free);particles=[];outcomeShown=false;accumulator=0;
   angle=next===0?Math.atan2(-120,-250):-Math.PI/4;power=.45;powerInput.value='45';
   $('result-overlay').classList.add('hidden');
   const m=missions[index];
@@ -116,8 +127,8 @@ function updateHud(){
 function toast(text:string){clearTimeout(floatTimeout);$('floating-message').textContent=text;$('floating-message').classList.add('visible');floatTimeout=window.setTimeout(()=>$('floating-message').classList.remove('visible'),3200);}
 function doShoot(value=power){
   if(titleOpen||renderer.cueInspection||paused||hostPaused||guide.open||pauseDialog.open)return;
-  if(online?.active){if(online.shoot(angle,value)){if(online.isHost)shotEffect(value);updateHud();}return;}
-  if(session.shoot(angle,value)){shotEffect(value);og.track('shot_taken',{mission:practice?0:index+1});updateHud();}
+  if(online?.active){if(online.shoot(angle,value,spin)){setSpin({x:0,y:0});if(online.isHost)shotEffect(value);updateHud();}return;}
+  if(session.shoot(angle,value,spin)){setSpin({x:0,y:0});shotEffect(value);og.track('shot_taken',{mission:practice?0:index+1});updateHud();}
 }
 function cancelCharge(){charging=false;pointerId=null;keys.delete('Space');}
 function startCharge(){if(!canShoot()||paused||hostPaused||guide.open||pauseDialog.open)return;charging=true;shotAngle=angle;chargeStarted=performance.now();}
@@ -172,6 +183,7 @@ window.addEventListener('keydown',e=>{
   if((e.target as HTMLElement).closest('button,summary')&&['Space','Enter'].includes(e.code))return;
   if(guide.open||pauseDialog.open){if(e.code==='KeyP'&&pauseDialog.open)setPause(false);return;}
   if(titleOpen){if(e.code==='Enter')setTitle(false);return;}
+  if(['KeyW','KeyS','KeyA','KeyD','KeyC'].includes(e.code)){e.preventDefault();if(canShoot()&&!paused&&!hostPaused)setSpin(e.code==='KeyC'?{x:0,y:0}:{x:spin.x+(e.code==='KeyD'?.1:e.code==='KeyA'?-.1:0),y:spin.y+(e.code==='KeyW'?.1:e.code==='KeyS'?-.1:0)});return;}
   if(['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();
   keys.add(e.code);
   if(e.repeat)return;

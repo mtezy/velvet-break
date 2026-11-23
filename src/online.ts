@@ -1,6 +1,6 @@
 import type { Peer, DataConnection } from 'peerjs';
 import { VersusMatch, VS_RULES, type Player, type PoolMode } from './versus.ts';
-import type { PhysicsEvent } from './physics.ts';
+import { validSpin, type Spin, type PhysicsEvent } from './physics.ts';
 import { getTableDesign } from './tables.ts';
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const cleanName=(name:unknown)=>typeof name==='string'?name.trim().slice(0,20)||'Rune wanderer':'Rune wanderer';
@@ -75,7 +75,7 @@ export class OnlineGame {
       if(data.type==='hello'&&!this.connected){this.names[1]=cleanName(data.name);this.connected=true;clearTimeout(this.timer);this.match=new VersusMatch(this.mode);this.hostReady=this.guestReady=false;this.sendState();this.refresh();return;}
       if(!this.connected||!this.match)return;
       if(data.type==='shoot'&&data.sequence===this.match.shots&&typeof data.angle==='number'&&typeof data.power==='number'){
-        if(this.match.shoot(1,data.angle,data.power)){this.hooks.shot(data.power);this.send({type:'shot',power:data.power});}this.sendState();
+        if(this.match.shoot(1,data.angle,data.power,data.spin)){this.hooks.shot(data.power);this.send({type:'shot',power:data.power,spin:data.spin??{x:0,y:0}});}this.sendState();
       }
       if(data.type==='place'&&typeof data.x==='number'&&typeof data.y==='number'){this.match.placeCue(1,data.x,data.y);this.sendState();}
       if(data.type==='rematch'&&this.match.winner!==null){this.guestReady=true;this.tryRematch();}
@@ -107,10 +107,10 @@ export class OnlineGame {
     const wasMoving=this.match.inShot,events=this.match.tick(dt);
     if((wasMoving&&!this.match.inShot)||performance.now()-this.sentAt>(this.match.inShot?70:1800))this.sendState();return events;
   }
-  shoot(angle:number,power:number){
-    if(!this.canShoot||!this.match)return false;
-    if(this.isHost){if(!this.match.shoot(0,angle,power))return false;this.send({type:'shot',power});this.sendState();}
-    else{this.pending=true;this.send({type:'shoot',angle,power,sequence:this.match.shots});}
+  shoot(angle:number,power:number,spin:Spin={x:0,y:0}){
+    if(!this.canShoot||!this.match||!validSpin(spin))return false;
+    if(this.isHost){if(!this.match.shoot(0,angle,power,spin))return false;this.send({type:'shot',power,spin});this.sendState();}
+    else{this.pending=true;this.send({type:'shoot',angle,power,spin,sequence:this.match.shots});}
     return true;
   }
   place(x:number,y:number){if(!this.canPlace||!this.match)return false;if(this.isHost){const placed=this.match.placeCue(0,x,y);if(placed)this.sendState();return placed;}this.pending=true;this.send({type:'place',x,y});return true;}

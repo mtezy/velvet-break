@@ -1,0 +1,5 @@
+.spin-control{display:grid;grid-template-columns:46px auto;gap:4px 8px;align-items:center;flex-shrink:0;font-size:10px}
+#spin-picker{grid-row:span 2;position:relative;width:46px;height:46px;border:1px solid #b9c6bf;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffef2,#b4c2ba);touch-action:none}
+#spin-dot{position:absolute;left:50%;top:50%;width:7px;height:7px;transform:translate(-50%,-50%);border-radius:50%;background:#a52e47;pointer-events:none}
+#spin-value{font-size:9px;white-space:nowrap;color:var(--text-muted)}
+@media(max-width:480px){.shot-controls{flex-wrap:wrap}.spin-control{order:3;width:100%;grid-template-columns:46px auto 1fr}#spin-picker{grid-row:auto}#spin-value{text-align:right}}

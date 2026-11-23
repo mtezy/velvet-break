@@ -4,7 +4,7 @@ export interface Mission {
   objective: string; tip: string; layout: number[][]; rule?: 'bank' | 'order' | 'called' | 'eight'; pocket?: number; time?: number;
 }
 export const missions: Mission[] = [
-  {title:'First contact', chapter:'Find your feel', act:1, difficulty:'Rookie', shots:3, par:1, objective:'Pot the yellow 1 ball.', tip:'Aim through the 1 ball toward the top-left pocket. About 35% power is plenty.', layout:[[0,590,330],[1,340,210]]},
+  {title:'First contact', chapter:'Find your feel', act:1, difficulty:'Rookie', shots:3, par:1, objective:'Pot the yellow 1 ball.', tip:'Aim through the 1 ball toward the top-left pocket. About 35% power is plenty. Keep spin centred to start; top follows, back draws, side changes banks.', layout:[[0,590,330],[1,340,210]]},
   {title:'Double trouble', chapter:'Find your feel', act:1, difficulty:'Rookie', shots:4, par:2, objective:'Clear both balls in 4 shots.', tip:'Plan your second shot before taking your first. A soft touch keeps the cue ball close.', layout:[[0,500,330],[1,315,198],[2,875,450]]},
   {title:'Three is a crowd', chapter:'Find your feel', act:1, difficulty:'Rookie', shots:5, par:3, objective:'Clear all 3 balls.', tip:'Each ball has a nearby pocket. Aim for the center of the pocket, not the rail.', layout:[[0,420,370],[1,260,180],[2,870,190],[3,870,470]]},
   {title:'Off the wall', chapter:'Work the angles', act:2, difficulty:'Hustler', shots:5, par:2, rule:'bank', objective:'Bank the 4 ball off a cushion, then pot it.', tip:'The purple ball must hit a cushion during the shot it drops. Think of the cushion as a mirror.', layout:[[0,430,395],[4,660,270]]},

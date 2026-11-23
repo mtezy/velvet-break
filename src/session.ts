@@ -1,4 +1,4 @@
-import { simulate, strike, moving, respot, type Ball, type PhysicsEvent } from './physics.ts';
+import { simulate, strike, moving, respot, type Ball, type PhysicsEvent, type Spin } from './physics.ts';
 import { createLayout, practiceLayout, type Mission } from './missions.ts';
 export class Session {
   mission: Mission; balls:Ball[]; practice:boolean; shots=0; potted:number[]=[]; started=false; inShot=false; scratched=false;
@@ -8,10 +8,10 @@ export class Session {
   get remaining(){return this.practice?Infinity:Math.max(0,this.mission.shots-this.shots);}
   get total(){return this.balls.length-1;}
   get stars(){return this.shots<=this.mission.par?3:this.shots<=this.mission.par+1?2:1;}
-  shoot(angle:number,power:number){
+  shoot(angle:number,power:number,spin:Spin={x:0,y:0}){
     if(!this.canShoot)return false;
     this.balls.forEach(b=>b.banks=0);this.shots++;this.started=true;this.inShot=true;this.scratched=false;
-    strike(this.balls.find(b=>b.id===0)!,angle,power);return true;
+    strike(this.balls.find(b=>b.id===0)!,angle,power,spin);return true;
   }
   advanceClock(dt:number){
     if(this.outcome!=='playing'||this.practice||!this.mission.time||!this.started)return;

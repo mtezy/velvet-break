@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import { VersusMatch } from '../src/versus.ts';
 import { TABLE } from '../src/physics.ts';
 function settle(match:VersusMatch){for(let i=0;i<7000&&match.inShot;i++)match.tick(1/240);assert.equal(match.inShot,false);}
+test('online shot validation rejects malformed or out-of-range spin without mutating state',()=>{
+  const match=new VersusMatch('8-ball'),before=match.snapshot();
+  for(const spin of [{x:1.1,y:0},{x:0,y:-2},{x:.8,y:.8},{x:NaN,y:0},{x:0,y:Infinity},{x:0},null]){
+    assert.equal(match.shoot(0,0,.5,spin),false);assert.deepEqual(match.snapshot(),before);
+  }
+  assert.equal(match.shoot(0,0,.5,{x:.6,y:-.8}),true);
+  const peer=new VersusMatch('8-ball');assert.equal(peer.applySnapshot(match.snapshot()),true);assert.deepEqual(peer.balls[0].spin,match.balls[0].spin);
+  const bad=match.snapshot();bad.balls[0].spin={x:2,y:0};assert.equal(peer.applySnapshot(bad),false);
+});
+test('legacy online shots and snapshots default missing spin to centre',()=>{
+  const match=new VersusMatch('9-ball');assert.equal(match.shoot(0,0,.5),true);assert.deepEqual(match.balls[0].spin,{x:0,y:0});
+  const state=match.snapshot();for(const b of state.balls){delete b.spin;delete b.spinContact;}
+  const peer=new VersusMatch('9-ball');peer.balls[0].spin={x:1,y:0};assert.equal(peer.applySnapshot(state),true);assert.deepEqual(peer.balls[0].spin,{x:0,y:0});
+});
 function lineUp(match:VersusMatch,id:number){
   for(const b of match.balls)Object.assign(b,{active:b.id===0||b.id===id,vx:0,vy:0});
   Object.assign(match.balls[0],{x:590,y:330});Object.assign(match.balls.find(b=>b.id===id)!,{x:340,y:210});
