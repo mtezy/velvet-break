@@ -9,7 +9,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DEFAULT_CAMERA, cameraFit, type CameraSettings } from './camera-settings.ts';
 import { buildCueModel } from './cue-model.ts';
 import { getCueDesign, type CueDesign } from './cues.ts';
-import { contactShadow, placeBallShadow } from './surfaces.ts';
+import { contactShadow, createBallContactDecals, placeBallShadow, updateBallContactDecals } from './surfaces.ts';
 import { BALL_LABEL_SCALE, mobileBallLabelScale, type ProjectedBallLabel } from './ball-labels.ts';
 import { titleCameraPosition } from './title-camera.ts';
 import { BreakFlash, PocketHighlights } from './highlight-effects.ts';
@@ -55,8 +55,10 @@ export class PoolRenderer {
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
   private ballGeometry=new THREE.SphereGeometry(TABLE.radius,32,24);
-  private contactGeometry=new THREE.PlaneGeometry(52,52);
-  private contactMaterial=new THREE.MeshBasicMaterial({map:contactShadow(),transparent:true,opacity:.93,depthWrite:false});
+  private shadowGeometry=new THREE.PlaneGeometry(52,52);
+  private shadowTexture=contactShadow();
+  private shadowMaterial=new THREE.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.93,depthWrite:false});
+  private ballContactDecals=createBallContactDecals(this.shadowTexture);
   private ballEnvironment?:THREE.RenderTarget;
   clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
   cuePath=new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(241*2*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(241*2*4),4)).setIndex(Array.from({length:240},(_,i)=>[i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2]).flat()),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
@@ -92,7 +94,7 @@ export class PoolRenderer {
     const practical=new THREE.SpotLight(0xffb565,3200,1600,1.03,.6,1);
     practical.position.copy(lampPosition);this.scene.add(practical,practical.target);
     this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
-    this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath,this.cueStop);
+    this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath,this.cueStop,this.ballContactDecals);
     this.cuePath.renderOrder=20;this.cueStop.renderOrder=21;this.cueStop.rotation.x=-Math.PI/2;
     this.ghost.rotation.x=this.targetRing.rotation.x=this.calledRing.rotation.x=-Math.PI/2;
     this.buildCue();
@@ -160,7 +162,7 @@ export class PoolRenderer {
     const map=new THREE.CanvasTexture(mapCanvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=Math.min(4,this.renderer!.capabilities.getMaxAnisotropy());
     const material=resinBallMaterial(map,this.ballEnvironment!.texture,this.economyBallFinish);
     const mesh=new THREE.Mesh(this.ballGeometry,material);mesh.position.set(x-600,TABLE.radius,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;
-    const shadow=new THREE.Mesh(this.contactGeometry,this.contactMaterial);this.scene.add(mesh,shadow);
+    const shadow=new THREE.Mesh(this.shadowGeometry,this.shadowMaterial);this.scene.add(mesh,shadow);
     const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;drawBallLabel(labelCanvas,id,this.phoneLabels);
     const labelMap=new THREE.CanvasTexture(labelCanvas);labelMap.colorSpace=THREE.SRGBColorSpace;
     const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:labelMap,transparent:true,depthWrite:false,toneMapped:false,fog:!this.phoneLabels}));sprite.scale.set(BALL_LABEL_SCALE,BALL_LABEL_SCALE,1);sprite.renderOrder=2;this.scene.add(sprite);
@@ -272,6 +274,7 @@ export class PoolRenderer {
         if(this.phoneLabels)hasPhoneLabels=true;
       }
     }
+    updateBallContactDecals(this.ballContactDecals,this.balls.values());
     if(hasPhoneLabels)this.sizePhoneLabels(camera);
     this.cueDisplay.visible=this.cueInspection&&!this.titleMode&&!replay;
     if(this.cueDisplay.visible){const direction=this.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);this.cueDisplay.position.copy(this.camera.position).addScaledVector(direction,900).addScaledVector(right,130).addScaledVector(up,this.camera.aspect<.8?95:10);this.cueDisplay.quaternion.copy(this.camera.quaternion);this.cueDisplay.rotateZ(-.12);this.cueDisplay.rotateY(this.cueSpin);this.cueDisplay.scale.setScalar(Math.min(1.2,this.camera.aspect*1.25));}

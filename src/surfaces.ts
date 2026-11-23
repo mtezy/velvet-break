@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BALL_COLORS, TABLE } from './physics.ts';
 
 /** Original, deterministic materials: no network textures or per-frame painting. */
 export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'lacquer',detailed:boolean,grain=base){
@@ -56,6 +57,27 @@ export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'l
 export function contactShadow(){
   const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const c=canvas.getContext('2d')!;
   const g=c.createRadialGradient(32,32,4,32,32,31);g.addColorStop(0,'#020603f2');g.addColorStop(.35,'#020603d4');g.addColorStop(.62,'#02060391');g.addColorStop(.82,'#02060332');g.addColorStop(1,'#02060300');c.fillStyle=g;c.fillRect(0,0,64,64);return new THREE.CanvasTexture(canvas);
+}
+
+export function createBallContactDecals(map:THREE.Texture){
+  const size=TABLE.radius*3;
+  const geometry=new THREE.PlaneGeometry(size,size).rotateX(-Math.PI/2);
+  const material=new THREE.MeshBasicMaterial({map,transparent:true,opacity:.9,depthWrite:false,toneMapped:false});
+  const decals=new THREE.InstancedMesh(geometry,material,BALL_COLORS.length);
+  decals.name='ball-contact-decals';decals.count=0;decals.frustumCulled=false;decals.renderOrder=1;
+  decals.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  return decals;
+}
+
+const contactTransform=new THREE.Matrix4();
+export function updateBallContactDecals(decals:THREE.InstancedMesh,balls:Iterable<{mesh:THREE.Object3D}>){
+  let count=0;
+  for(const {mesh} of balls)if(mesh.visible){
+    contactTransform.makeTranslation(mesh.position.x,.42,mesh.position.z);
+    decals.setMatrixAt(count++,contactTransform);
+  }
+  decals.count=count;
+  if(count)decals.instanceMatrix.needsUpdate=true;
 }
 
 export function placeBallShadow(shadow:THREE.Object3D,ball:THREE.Vector3,lamp:THREE.Vector3,economy:boolean){
