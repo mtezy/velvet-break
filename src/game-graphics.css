@@ -1,0 +1,224 @@
+/* Original, local artwork. Surface grain is cached; atmosphere uses only transforms. */
+:root {
+  --guild-grain: url('/ui/forged-grain.svg');
+  --guild-brass: linear-gradient(135deg, #fff0b7, #b98b40 23%, #61431f 49%, #d7b76f 73%, #755024);
+  --guild-stone: var(--guild-grain), radial-gradient(ellipse at 25% 0, #34403b88, transparent 70%), linear-gradient(155deg, #1b2929, #101a1c 70%);
+  --guild-wood: var(--guild-grain), repeating-linear-gradient(176deg, #ffffff03 0 1px, transparent 1px 7px), linear-gradient(120deg, #30261f, #151b1b 65%);
+}
+
+:is(.campaign-panel, .table-room, .online-panel, .camera-panel, .title-table, .result-card, dialog:not(#shot-replay)),
+.shot-hud #hud-view-options {
+  background: var(--guild-stone);
+  border: 2px solid #a58247;
+  border-top-color: #e3c586;
+  border-bottom-color: #5c401f;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 3px #091314, inset 0 0 0 4px #b68e484d, inset 0 0 35px #0008, 0 3px 0 #080e0f, 0 20px 55px #0009;
+}
+.campaign-panel, .table-room, .online-panel, .camera-panel { padding-inline: 22px; }
+.panel-heading, .online-heading, .camera-panel-heading {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #b3915059;
+  background: linear-gradient(90deg, transparent, #dfbb6820, transparent) bottom / 80% 1px no-repeat;
+}
+.table-room > summary { background: transparent; }
+.topbar {
+  background: var(--guild-wood);
+  border-bottom: 2px solid #9a793f;
+  box-shadow: inset 0 -3px 0 #090f11, 0 6px 22px #0007;
+}
+.brand-ball, .tiny-ball {
+  background: radial-gradient(circle at 32% 20%, #58615a, #111c1c 60%);
+  border-color: #d6b56d;
+  box-shadow: inset 0 0 0 2px #141b18, 0 2px 5px #0009;
+}
+.table-hud, .shot-hud.shot-controls, .table-status {
+  background: var(--guild-stone);
+  border-color: #b59355 #66502f #503c22;
+  border-radius: 5px;
+  box-shadow: inset 0 1px #f8df9b35, inset 0 -2px #0009, 0 5px 18px #0008;
+}
+.mission-heading h2 > span:first-child {
+  border-color: #c2a168;
+  background: var(--guild-wood);
+  box-shadow: inset 0 0 0 3px #101b1c, 0 2px 5px #0008;
+}
+
+:is(.primary-button, .title-play) {
+  background: var(--guild-grain), linear-gradient(#f8e2a1 0%, #dab76a 46%, #bd9045 49%, #e0bf76 100%);
+  color: #242416;
+  border: 1px solid #fff0b8;
+  border-bottom-color: #805824;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 2px #79522488, inset 0 3px 0 #fff2c580, 0 3px 0 #5a3c1d, 0 5px 0 #080e0f, 0 7px 18px #0007;
+  text-shadow: 0 1px #fff3c46b;
+  transition: filter .18s, box-shadow .18s, translate .18s;
+}
+:is(.primary-button, .title-play):hover:not(:disabled) {
+  background: var(--guild-grain), linear-gradient(#fff0be, #e9c77e 47%, #d1a457 50%, #f0d18b);
+  box-shadow: inset 0 0 0 2px #87602d88, 0 3px 0 #694622, 0 5px 0 #080e0f, 0 0 24px #e3bb5f45;
+}
+:is(.primary-button, .title-play):active:not(:disabled) { translate: 0 2px; }
+:is(.secondary-button, .title-actions button, .title-table button, .camera-presets button, .camera-centre),
+.shot-hud :is(#restart-button, #hud-view-button, #spin-reset),
+.shot-hud #hud-view-options button {
+  background: var(--guild-grain), linear-gradient(#33413b, #1b2a29 48%, #132122 51%, #24332e);
+  border: 1px solid #9e824b;
+  border-bottom-color: #4c3a21;
+  border-radius: 4px;
+  box-shadow: inset 0 1px #e9d49e30, inset 0 0 0 2px #07131680, 0 2px 0 #070f11;
+  color: #eee3c7;
+}
+:is(.secondary-button, .title-actions button, .title-table button, .camera-presets button, .camera-centre):hover:not(:disabled),
+.shot-hud :is(#restart-button, #hud-view-button, #spin-reset):hover:not(:disabled) {
+  background: var(--guild-grain), linear-gradient(#465447, #233932);
+  border-color: #e5c783;
+}
+button:disabled { filter: saturate(.35); }
+.table-design, .cue-design { background: var(--guild-wood); border-color: #806b43; border-radius: 3px; }
+.table-design[aria-pressed=true], .cue-design[aria-pressed=true] { background: var(--guild-grain), linear-gradient(120deg, #3d4934, #172b29); }
+
+/* Keep the native range input and its 28px touch/keyboard hit area. */
+.shot-hud #power { appearance: none; -webkit-appearance: none; background: transparent; }
+.shot-hud #power::-webkit-slider-runnable-track {
+  height: 10px;
+  border: 1px solid #c3a165;
+  border-radius: 2px;
+  background: repeating-linear-gradient(90deg, transparent 0 9%, #0c151aa6 9% 10%), linear-gradient(90deg, #81b9a1, #ead08a 75%, #e5a05a) 0 / var(--power-fill, 39%) 100% no-repeat, #071213;
+  box-shadow: inset 0 2px 3px #000a, 0 1px #fff2c426;
+}
+.shot-hud #power::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none; width: 14px; height: 20px; margin-top: -6px;
+  background: linear-gradient(90deg, #88602b, #ffe9ab 45%, #c99d4c 60%, #785022);
+  border: 1px solid #f1d593; border-radius: 2px; box-shadow: 0 2px 5px #000b;
+}
+.shot-hud #power::-moz-range-track { height: 9px; background: #091717; border: 1px solid #b39256; border-radius: 2px; }
+.shot-hud #power::-moz-range-progress { height: 7px; background: linear-gradient(90deg, #84b8a1, #ead08a); }
+.shot-hud #power::-moz-range-thumb { width: 12px; height: 18px; border: 1px solid #f1d593; border-radius: 2px; background: linear-gradient(90deg, #88602b, #ffe9ab, #aa7c34); }
+
+/* A lit, engraved title plate over the real 3D hall. No canvas overlays in play. */
+.guild-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
+.guild-atmosphere::before {
+  content: ''; position: absolute; inset: 0;
+  background: conic-gradient(from 160deg at 73% -15%, transparent 0deg, #f5ca7222 11deg, transparent 23deg, #f5ca7215 30deg, transparent 44deg), radial-gradient(ellipse at 66% 0, #e8af5420, transparent 62%);
+}
+.guild-atmosphere::after {
+  content: ''; position: absolute; inset: -15%; opacity: .65;
+  background-image: radial-gradient(circle, #ffdc91 0 1px, transparent 2px), radial-gradient(circle, #e3b971 0 1px, transparent 1.7px), radial-gradient(circle, #ffe1a066 0 1px, transparent 2px);
+  background-size: 173px 211px, 281px 167px, 113px 157px;
+  background-position: 20px 50px, 137px 31px, 51px 113px;
+  mask-image: linear-gradient(transparent, #000 25%, #000 65%, transparent);
+  animation: guild-dust 22s linear infinite alternate;
+}
+.title-screen { isolation: isolate; }
+.title-kicker .guild-crest { width: 66px; height: 66px; flex: none; filter: drop-shadow(0 4px 7px #0009); }
+.title-kicker { margin-bottom: 16px; color: #e6c985; letter-spacing: .15em; }
+.title-copy h1 { color: #f1e3be; text-shadow: 0 2px #a18a53, 0 4px #30291d, 0 7px 8px #000b, 0 0 45px #dfb45e1a; }
+.title-copy h1 em { color: #e7c77c; text-shadow: 0 2px #795b2b, 0 4px #211d17, 0 8px 12px #000c; }
+.title-copy h1 > span {
+  width: fit-content; max-width: 100%; padding: 9px 20px;
+  border-block: 1px solid #c9a45d99;
+  background: linear-gradient(90deg, transparent, #9a713844 20% 80%, transparent);
+  letter-spacing: .13em; text-shadow: 0 2px #000;
+}
+.title-play { margin-top: 4px; }
+.title-actions button { font-size: 12px; }
+.title-table { background: var(--guild-wood); }
+.title-table > p { color: #e6c985; }
+
+/* Mission relics: shield crests, raised cards and minted star medallions. */
+.map-chapter-head { align-items: center; }
+.chapter-label { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.chapter-crest { width: 42px; height: 46px; flex: none; filter: drop-shadow(0 3px 3px #0008); }
+.map-chapter .act-title { line-height: 1.6; letter-spacing: .1em; }
+.map-chapter-bar { height: 4px; background: #060f12; border: 1px solid #806333; }
+.map-chapter-bar i, .campaign-progress > div { background: linear-gradient(#fff0b6, #b38c44); box-shadow: 0 0 8px #d9ae5b33; }
+.mission-card { border-color: #806940; border-radius: 4px; background: var(--guild-wood); box-shadow: inset 0 0 0 2px #090f10, 0 3px 0 #080e0f; }
+.mission-card:hover { border-color: #ddc186; }
+.mission-card.selected { border-color: #f0d391; box-shadow: inset 0 0 0 1px #efcb7666, 0 0 0 1px #7d5b2e, 0 5px 16px #0009; }
+.mission-card.next-up { border-color: #b8bc87; }
+.card-map { background: radial-gradient(ellipse at 50% 0, #e0bd5933, transparent 80%), var(--guild-stone); border-color: #846b3b; }
+.card-body { padding: 12px; }
+.card-number { color: #d6b976; font-family: var(--font-heading); }
+.card-stars { gap: 2px; font-size: 20px; }
+.card-stars i { color: #897042; }
+.card-stars i:not(.earned) { opacity: .7; }
+.card-seal { width: 28px; height: 28px; border: 2px solid #e6c784; color: #17362d; background: linear-gradient(135deg, #fff0b6, #aa7d33 55%, #f0d391); box-shadow: 0 2px 4px #000a; }
+.card-seal .rune-icon { width: 16px; height: 16px; }
+.rune-icon:has(use[href='#rune-award']), .rune-icon:has(use[href='#rune-award-empty']) { overflow: visible; stroke: none; }
+.rune-icon use[href='#rune-award-empty'] { opacity: 1; }
+
+/* Victory is a trophy plaque; losses retain the same readable, quiet frame. */
+.result-card { position: relative; width: min(460px, calc(100vw - 32px)); max-width: 460px; padding: 26px 30px; overflow: hidden; isolation: isolate; }
+.result-card::before { content: ''; position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 50% 0, #d4ac4f21, transparent 65%); pointer-events: none; }
+.result-card .rune-seal { margin: -8px auto 4px; height: 94px; }
+.result-card .guild-crest { width: 94px; height: 94px; filter: drop-shadow(0 4px 5px #0008); }
+.result-card #result-kicker { margin-inline: -8px; padding: 9px 12px; color: #efcf89; border-block: 1px solid #d0a65a66; background: linear-gradient(90deg, transparent, #8a5d333d, transparent); letter-spacing: .15em; }
+.result-card h2 { font: 400 clamp(27px, 4vw, 38px)/1.1 var(--font-heading); margin: 14px 0 12px; color: #f4e7c8; text-shadow: 0 2px #000; }
+.result-stars { font-size: 42px; margin: 16px 0 8px; line-height: 1; }
+.result-stars .rune-icon + .rune-icon { margin-inline-start: .14em; }
+.rune-victory .result-stars .rune-icon:nth-child(2) { transform: translateY(-5px) scale(1.16); }
+.rune-victory .result-card::before { background: conic-gradient(from 165deg at 50% -10%, transparent, #dcb15c22 13deg, transparent 27deg, #dcb15c1a 40deg, transparent 55deg), radial-gradient(ellipse at 50% 0, #d4ac4f33, transparent 65%); }
+.rune-victory .result-card::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(circle at 15% 22%, #ffe3a6 0 1px, transparent 2px), radial-gradient(circle at 85% 30%, #ffe3a6 0 1px, transparent 2px), radial-gradient(circle at 22% 64%, #ffe3a6 0 1px, transparent 2px), radial-gradient(circle at 88% 70%, #ffe3a6 0 1px, transparent 2px); }
+.result-card #next-mission { margin-top: 8px; }
+.canvas-wrap:has(.result-overlay:not(.hidden)) { z-index: 6; }
+.result-overlay { overflow-y: auto; overscroll-behavior: contain; align-items: safe center; padding-block: 16px; }
+
+@keyframes guild-dust { to { transform: translate3d(18px, -35px, 0); opacity: .35; } }
+.effects-off .guild-atmosphere::after { animation: none; opacity: .25; }
+.effects-off :is(.primary-button, .title-play) { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .guild-atmosphere::after { animation: none; opacity: .25; }
+  :is(.primary-button, .title-play) { transition: none; }
+}
+@media (max-width: 520px) {
+  .topbar nav { background: var(--guild-wood); }
+  .nav-button { background: linear-gradient(#28352f, #142222); border-color: #8e75464d; }
+  .nav-button.active { background: linear-gradient(#665431, #2f3528); border-color: #d2b06c; }
+  .campaign-panel, .table-room, .online-panel, .camera-panel { padding-inline: 14px; }
+  .title-kicker .guild-crest { width: 48px; height: 48px; }
+  .title-kicker { gap: 10px; font-size: 9px; letter-spacing: .09em; margin-bottom: 12px; }
+  .title-copy h1 > span { font-size: 10px; padding: 8px 10px; letter-spacing: .08em; }
+  .title-actions { gap: 9px; }
+  .title-actions button { min-height: 44px; padding: 7px; font-size: 11px; }
+  .title-table { padding: 12px 16px; }
+  .title-footnote { font-size: 10px; }
+  .chapter-crest { width: 33px; height: 38px; }
+  .chapter-label { gap: 6px; }
+  .map-chapter .act-title { font-size: 9px; }
+  .map-chapter-stars { font-size: 10px; }
+  .card-body { padding: 8px; }
+  .card-stars { font-size: 18px; }
+  .card-seal { width: 23px; height: 23px; }
+  .result-card { padding: 20px; margin: 12px; flex-shrink: 0; }
+  .result-card .rune-seal, .result-card .guild-crest { height: 72px; }
+  .result-stars { font-size: 36px; }
+}
+@media (max-height: 720px) and (min-width: 521px) {
+  .title-kicker .guild-crest { width: 46px; height: 46px; }
+  .title-kicker { margin-bottom: 10px; }
+  .title-copy h1 { font-size: 76px; }
+  .title-copy h1 > span { margin-top: 20px; }
+  .title-tagline { margin-block: 16px; }
+  .title-actions { margin-top: 14px; }
+  .title-footnote { margin-top: 14px; }
+  .result-card { padding-block: 18px; }
+  .result-card .rune-seal, .result-card .guild-crest { height: 64px; }
+}
+/* Landscape phones and short desktop windows must scroll, not crop their actions. */
+@media (max-height: 600px) and (min-width: 521px) {
+  .title-open .title-screen {
+    display: flex; flex-direction: column; align-items: flex-start;
+    overflow-y: auto; pointer-events: auto; padding: 92px 30px 24px;
+  }
+  .title-copy { position: static; transform: none; width: min(470px, 100%); max-width: 100%; flex-shrink: 0; }
+  .title-copy h1 { font-size: 56px; }
+  .title-copy h1 > span { margin-top: 16px; }
+  .title-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .title-table { position: static; margin: 24px 0 0; width: min(330px, 100%); min-width: 0; flex-shrink: 0; }
+  .title-bottom { position: static; margin-top: 24px; width: 100%; flex-shrink: 0; }
+  .result-overlay { inset: 76px 0 0; }
+}
+@media (max-height: 600px) and (min-width: 521px) and (max-width: 800px) {
+  .result-overlay { top: 65px; }
+}

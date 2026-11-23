@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+  <defs>
+    <linearGradient id="gold" x2=".8" y2="1"><stop stop-color="#fff0bb"/><stop offset=".25" stop-color="#d6aa50"/><stop offset=".5" stop-color="#78501e"/><stop offset=".72" stop-color="#efd18a"/><stop offset="1" stop-color="#9b692a"/></linearGradient>
+    <radialGradient id="enamel"><stop stop-color="#32534d"/><stop offset=".7" stop-color="#142a29"/><stop offset="1" stop-color="#081617"/></radialGradient>
+    <radialGradient id="ball" cx=".35" cy=".25"><stop stop-color="#54605b"/><stop offset=".5" stop-color="#172124"/><stop offset="1" stop-color="#020809"/></radialGradient>
+    <path id="leaf" d="M0 0Q-14-5-13-18Q1-15 0 0Z"/>
+  </defs>
+  <g fill="url(#gold)" stroke="#6c4a20" stroke-width=".7">
+    <path d="m25 24 3-2 106 115-3 3Z"/><path d="m134 23 3 3L27 139l-4-3Z"/>
+    <path d="M78 140C30 140 6 84 32 40l3 2C12 86 36 135 79 136Zm4 0c48 0 72-56 46-100l-3 2c23 44-1 93-44 94Z"/>
+    <use href="#leaf" transform="translate(45 124) rotate(-35)"/><use href="#leaf" transform="translate(31 110) rotate(-49)"/><use href="#leaf" transform="translate(23 92) rotate(-66)"/><use href="#leaf" transform="translate(23 72) rotate(-84)"/><use href="#leaf" transform="translate(29 54) rotate(-105)"/>
+    <use href="#leaf" transform="translate(115 124) scale(-1 1) rotate(-35)"/><use href="#leaf" transform="translate(129 110) scale(-1 1) rotate(-49)"/><use href="#leaf" transform="translate(137 92) scale(-1 1) rotate(-66)"/><use href="#leaf" transform="translate(137 72) scale(-1 1) rotate(-84)"/><use href="#leaf" transform="translate(131 54) scale(-1 1) rotate(-105)"/>
+    <path d="m80 12 9 9 26 6v51c0 27-19 42-35 51-16-9-35-24-35-51V27l26-6Z"/>
+  </g>
+  <path d="m80 21 8 7 19 5v45c0 21-14 35-27 43-13-8-27-22-27-43V33l19-5Z" fill="url(#enamel)" stroke="#ffdfa0" stroke-width="1"/>
+  <path d="m80 29 5 5 16 4v40c0 18-11 29-21 36-10-7-21-18-21-36V38l16-4Z" fill="none" stroke="#af8745" stroke-width=".8"/>
+  <circle cx="80" cy="69" r="23" fill="url(#ball)" stroke="#d9b971"/>
+  <circle cx="80" cy="68" r="12" fill="#f0e6bf"/>
+  <text x="80" y="75" text-anchor="middle" font-family="Georgia,serif" font-weight="bold" font-size="21" fill="#192322">8</text>
+  <path d="m80 94 3 6 6 2-6 2-3 6-3-6-6-2 6-2Z" fill="url(#gold)"/>
+  <path d="m42 133 38 7 38-7-4 13-34 7-34-7Z" fill="url(#gold)" stroke="#6b471b"/>
+  <path d="m54 140 26 5 26-5" fill="none" stroke="#fff0bc"/>
+</svg>

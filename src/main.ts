@@ -159,6 +159,7 @@ function updateHud(){
   const duel=versusMatch();
   const signature=[titleOpen,renderer.cueInspection,offline?.phase,offline?.difficulty,duel?.reason,duel?.calledPocket,duel?.pushOut,duel?.fouls.join(),duel?.kitchen,online?.active,online?.connected,online?.pending,duel?.turn,duel?.shots,duel?.inShot,duel?.ballInHand,duel?.winner,duel?.potted.length,duel?.groups.join(),session.shots,session.potted.length,session.inShot,session.outcome,Math.ceil(session.timeLeft),paused,hostPaused,Math.round(power*100),practice,index].join('|');
   if(signature===lastHud)return;lastHud=signature;
+  powerInput.style.setProperty('--power-fill', `${Math.max(0, Math.min(100, (power * 100 - 10) / 90 * 100))}%`);
   const ruleTurn=!!duel&&canChooseRule()&&!duel.inShot&&duel.winner===null;
   $('push-out').hidden=!ruleTurn||duel.pushOut!=='available';
   $('push-accept').hidden=$('push-pass').hidden=!ruleTurn||duel.pushOut!=='decision';
@@ -369,6 +370,8 @@ window.addEventListener('keydown',e=>{
   if((e.target as HTMLElement).closest('button,summary')&&['Space','Enter'].includes(e.code))return;
   if(guide.open||pauseDialog.open||cpuDialog.open||dailyDialog.open){if(e.code==='KeyP'&&pauseDialog.open)setPause(false);return;}
   if(titleOpen){if(e.code==='Enter')setTitle(false);return;}
+  // Let results scroll natively without stealing Escape, title or pause shortcuts.
+  if(!$('result-overlay').classList.contains('hidden')&&['Space','ArrowUp','ArrowDown'].includes(e.code))return;
   if(['KeyW','KeyS','KeyA','KeyD','KeyC'].includes(e.code)){e.preventDefault();if(canShoot()&&!paused&&!hostPaused)setSpin(e.code==='KeyC'?{x:0,y:0}:{x:spin.x+(e.code==='KeyD'?.1:e.code==='KeyA'?-.1:0),y:spin.y+(e.code==='KeyW'?.1:e.code==='KeyS'?-.1:0)});return;}
   if(['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();
   keys.add(e.code);
