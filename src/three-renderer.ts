@@ -4,6 +4,7 @@ import { BALL_COLORS, TABLE, POCKETS, aimTrace } from './physics.ts';
 import { render as renderFallback, type RenderState } from './render.ts';
 import { getTableDesign, type TableDesign } from './tables.ts';
 import { buildTableModel, disposeTableModel } from './table-model.ts';
+import { buildClubRoom } from './club-room.ts';
 
 /** The game uses a true 3D table and rolling spheres; a Canvas fallback keeps it playable without WebGL. */
 export class PoolRenderer {
@@ -16,6 +17,7 @@ export class PoolRenderer {
   balls=new Map<number,{mesh:THREE.Mesh;shadow:THREE.Mesh;lastX:number;lastY:number}>();
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
+  clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
   constructor(public canvas:HTMLCanvasElement){
     const lineMaterial=new THREE.LineDashedMaterial({color:0xc5eedc,dashSize:5,gapSize:8,transparent:true,opacity:.55,depthTest:false});
     this.aim=new THREE.Line(new THREE.BufferGeometry(),lineMaterial);this.targetLine=new THREE.Line(new THREE.BufferGeometry(),lineMaterial.clone());
@@ -26,25 +28,27 @@ export class PoolRenderer {
     this.sparks=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({map:new THREE.CanvasTexture(sparkCanvas),size:7,vertexColors:true,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
     try{this.renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'high-performance'});}catch{this.fallback=canvas.getContext('2d');canvas.dataset.renderer='canvas';return;}
     canvas.dataset.renderer='webgl2';
+    const gl=this.renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');this.software=!!debug&&/swiftshader|llvmpipe|software/i.test(String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)));
     // Contact shadows keep the 3D depth without a costly full-scene shadow pass.
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5));this.renderer.shadowMap.enabled=false;
-    this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.35;
-    this.scene.background=new THREE.Color('#10141e');
+    this.renderScale=this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer.setPixelRatio(this.renderScale);this.renderer.shadowMap.enabled=false;
+    this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.1;
+    this.scene.background=new THREE.Color('#111c20');this.scene.fog=new THREE.FogExp2('#111c20',.00024);
     this.controls=new OrbitControls(this.camera,canvas);this.controls.target.set(0,-80,0);
-    this.controls.enablePan=false;this.controls.minDistance=1330;this.controls.maxDistance=2350;
+    this.controls.enablePan=false;this.controls.minDistance=1050;this.controls.maxDistance=4400;
     this.controls.minPolarAngle=.12;this.controls.maxPolarAngle=Math.PI*.39;
     this.controls.mouseButtons={LEFT:null,MIDDLE:null,RIGHT:THREE.MOUSE.ROTATE};this.controls.touches={ONE:null,TWO:null};
     this.controls.addEventListener('change',()=>this.dirty=true);this.setView('club');
-    this.scene.add(new THREE.HemisphereLight(0xe2f9ef,0x24202b,2.3));
-    const key=new THREE.DirectionalLight(0xffedcf,3.2);key.position.set(-350,800,-200);this.scene.add(key);
-    const fill=new THREE.DirectionalLight(0x87c5e5,1.3);fill.position.set(400,300,500);this.scene.add(fill);
+    this.scene.add(new THREE.HemisphereLight(0xbed7df,0x62452c,1.35));
+    const key=new THREE.DirectionalLight(0xffddaa,2.8);key.position.set(-260,900,200);this.scene.add(key);
+    const practical=new THREE.PointLight(0xffd399,1.0,2300,0);practical.position.set(0,480,0);this.scene.add(practical);
+    this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
     this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks);
     this.ghost.rotation.x=this.targetRing.rotation.x=this.calledRing.rotation.x=-Math.PI/2;
     this.buildCue();
     // A small procedural studio reflection gives enamel balls curved highlights.
     const envCanvas=document.createElement('canvas');envCanvas.width=256;envCanvas.height=128;const ec=envCanvas.getContext('2d')!;
-    ec.fillStyle='#303c51';ec.fillRect(0,0,256,128);ec.fillStyle='#e8efff';ec.fillRect(25,25,85,13);ec.fillRect(162,16,50,20);ec.fillStyle='#8198ad';ec.fillRect(0,65,256,63);
-    const environment=new THREE.CanvasTexture(envCanvas);environment.mapping=THREE.EquirectangularReflectionMapping;environment.colorSpace=THREE.SRGBColorSpace;this.scene.environment=environment;this.scene.environmentIntensity=.55;
+    ec.fillStyle='#262620';ec.fillRect(0,0,256,128);ec.fillStyle='#fff1ce';ec.fillRect(26,18,115,10);ec.fillRect(180,24,38,6);ec.fillStyle='#bedde5';ec.fillRect(12,40,15,30);ec.fillRect(150,35,16,30);ec.fillStyle='#5f4230';ec.fillRect(0,78,256,50);
+    const environment=new THREE.CanvasTexture(envCanvas);environment.mapping=THREE.EquirectangularReflectionMapping;environment.colorSpace=THREE.SRGBColorSpace;this.scene.environment=environment;this.scene.environmentIntensity=.75;
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
     this.resize();
   }
@@ -55,8 +59,12 @@ export class PoolRenderer {
     this.scene.remove(this.tableModel);disposeTableModel(this.tableModel);this.tableModel=buildTableModel(design);this.scene.add(this.tableModel);
   }
   setView(view:'club'|'overhead'){
-    this.view=view;this.camera.position.copy(view==='club'?new THREE.Vector3(480,1000,1120):new THREE.Vector3(0,1510,160));
+    this.view=view;const fit=Math.max(1,1.5/Math.max(.45,this.camera.aspect));this.camera.position.copy(view==='club'?new THREE.Vector3(270,820,980).multiplyScalar(Math.max(1,fit*.82)):new THREE.Vector3(0,1450*fit,90));
     this.controls?.target.set(0,view==='club'?-80:0,0);this.camera.lookAt(this.controls?.target??new THREE.Vector3());this.controls?.update();this.dirty=true;
+  }
+  setTitleMode(value:boolean){this.titleMode=value;if(this.controls)this.controls.enabled=!value;if(value){this.camera.position.set(1100,420,1390);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;}
+  setQuality(value:'auto'|'high'|'economy'){
+    this.quality=value;this.renderScale=value==='economy'?.6:value==='high'?Math.min(window.devicePixelRatio,1.5):this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer?.setPixelRatio(this.renderScale);this.dirty=true;
   }
   pulse(x:number,y:number,color:string,radius=60,duration=.65){
     if(!this.effects||!this.renderer)return;
@@ -75,12 +83,12 @@ export class PoolRenderer {
     if(id!==0)for(const cx of [128,384]){c.beginPath();c.arc(cx,128,39,0,Math.PI*2);c.fillStyle='#fff8e7';c.fill();c.lineWidth=2;c.strokeStyle='#29263833';c.stroke();c.font='bold 48px Arial';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#18202c';c.fillText(String(id),cx,131);}
     else for(const cx of [64,192,320,448]){c.beginPath();c.arc(cx,128,5,0,Math.PI*2);c.fillStyle='#b6353e';c.fill();}
     const map=new THREE.CanvasTexture(mapCanvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=Math.min(4,this.renderer!.capabilities.getMaxAnisotropy());
-    const material=new THREE.MeshStandardMaterial({map,roughness:.16,metalness:.04,envMapIntensity:1.15});
+    const material=this.software?new THREE.MeshStandardMaterial({map,roughness:.17,metalness:.02,envMapIntensity:1.3}):new THREE.MeshPhysicalMaterial({map,roughness:.19,metalness:0,envMapIntensity:1.4,clearcoat:1,clearcoatRoughness:.08});
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(TABLE.radius,32,24),material);mesh.position.set(x-600,12,y-330);mesh.rotation.z=Math.PI/2;mesh.rotation.y=.4;this.scene.add(mesh);
     const shadow=new THREE.Mesh(new THREE.CircleGeometry(13,24),new THREE.MeshBasicMaterial({color:0x020c09,transparent:true,opacity:.24,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.scale.y=.85;shadow.position.set(x-599,.4,y-328);this.scene.add(shadow);
     const record={mesh,shadow,lastX:x,lastY:y};this.balls.set(id,record);return record;
   }
-  resize(){const w=this.canvas.clientWidth,h=w*780/1200;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}}
+  resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight||w*780/1200;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}}
   pointer(clientX:number,clientY:number){
     const bounds=this.canvas.getBoundingClientRect();if(!this.renderer)return{x:(clientX-bounds.left)/bounds.width*1200,y:(clientY-bounds.top)/bounds.height*660};
     this.raycaster.setFromCamera(new THREE.Vector2((clientX-bounds.left)/bounds.width*2-1,-(clientY-bounds.top)/bounds.height*2+1),this.camera);
@@ -93,6 +101,9 @@ export class PoolRenderer {
     const renderKey=[this.design.id,state.angle,state.power,state.charge,state.aiming,state.targetPocket,...state.balls.map(b=>`${b.id}:${b.x.toFixed(2)}:${b.y.toFixed(2)}:${b.active}`)].join('|');
     if(!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length)return;
     this.lastRenderKey=renderKey;this.dirty=false;
+    const isMoving=state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
+    if(this.quality==='auto'&&isMoving){this.averageFrame=this.averageFrame*.9+dt*.1;if(++this.qualityFrames%24===0&&this.averageFrame>.055&&this.renderScale>.48){this.renderScale=Math.max(.48,this.renderScale*.86);this.renderer.setPixelRatio(this.renderScale);}}
+    const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode||(this.view!=='overhead'&&this.camera.position.y/this.camera.position.length()<.86);
     for(const pulse of [...this.pulses]){pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));
     for(const [id,record]of this.balls){record.mesh.visible=false;record.shadow.visible=false;if(!ids.has(id)){this.scene.remove(record.mesh,record.shadow);record.mesh.geometry.dispose();(record.mesh.material as THREE.MeshStandardMaterial).map?.dispose();(record.mesh.material as THREE.Material).dispose();record.shadow.geometry.dispose();(record.shadow.material as THREE.Material).dispose();this.balls.delete(id);}}

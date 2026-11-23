@@ -114,10 +114,10 @@ export function buildTableModel(design:TableDesign){
     box(760,34,60,0,-180,0,trim);
   }
   // Floor and a soft baked contact shadow cost no shadow-map render passes.
-  slab(1490,1000,8,-302,new THREE.MeshStandardMaterial({color:design.floor,roughness:.9}),65);
+  // The cabinet now stands on the club's floor, not a showroom display slab.
   const shadowCanvas=document.createElement('canvas');shadowCanvas.width=128;shadowCanvas.height=64;
   const sc=shadowCanvas.getContext('2d')!;sc.scale(1,.5);const gradient=sc.createRadialGradient(64,64,4,64,64,64);gradient.addColorStop(0,'#000000b0');gradient.addColorStop(.65,'#00000060');gradient.addColorStop(1,'#00000000');sc.fillStyle=gradient;sc.fillRect(0,0,128,128);
-  const shadow=mesh(new THREE.PlaneGeometry(1410,890),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}),0,-290,5);shadow.rotation.x=-Math.PI/2;
+  const shadow=mesh(new THREE.PlaneGeometry(1510,1080),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}),0,-281,5);shadow.rotation.x=-Math.PI/2;
   // Static batching keeps eight detailed designs inexpensive on mobile GPUs.
   batchStaticMeshes(group);
   return group;
