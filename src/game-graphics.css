@@ -161,6 +161,8 @@ button:disabled { filter: saturate(.35); }
 .rune-victory .result-card::before { background: conic-gradient(from 165deg at 50% -10%, transparent, #dcb15c22 13deg, transparent 27deg, #dcb15c1a 40deg, transparent 55deg), radial-gradient(ellipse at 50% 0, #d4ac4f33, transparent 65%); }
 .rune-victory .result-card::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(circle at 15% 22%, #ffe3a6 0 1px, transparent 2px), radial-gradient(circle at 85% 30%, #ffe3a6 0 1px, transparent 2px), radial-gradient(circle at 22% 64%, #ffe3a6 0 1px, transparent 2px), radial-gradient(circle at 88% 70%, #ffe3a6 0 1px, transparent 2px); }
 .result-card #next-mission { margin-top: 8px; }
+.canvas-wrap:has(.result-overlay:not(.hidden)) { z-index: 6; }
+.result-overlay { overflow-y: auto; overscroll-behavior: contain; align-items: safe center; padding-block: 16px; }
 
 @keyframes guild-dust { to { transform: translate3d(18px, -35px, 0); opacity: .35; } }
 .effects-off .guild-atmosphere::after { animation: none; opacity: .25; }
@@ -202,4 +204,21 @@ button:disabled { filter: saturate(.35); }
   .title-footnote { margin-top: 14px; }
   .result-card { padding-block: 18px; }
   .result-card .rune-seal, .result-card .guild-crest { height: 64px; }
+}
+/* Landscape phones and short desktop windows must scroll, not crop their actions. */
+@media (max-height: 600px) and (min-width: 521px) {
+  .title-open .title-screen {
+    display: flex; flex-direction: column; align-items: flex-start;
+    overflow-y: auto; pointer-events: auto; padding: 92px 30px 24px;
+  }
+  .title-copy { position: static; transform: none; width: min(470px, 100%); max-width: 100%; flex-shrink: 0; }
+  .title-copy h1 { font-size: 56px; }
+  .title-copy h1 > span { margin-top: 16px; }
+  .title-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .title-table { position: static; margin: 24px 0 0; width: min(330px, 100%); min-width: 0; flex-shrink: 0; }
+  .title-bottom { position: static; margin-top: 24px; width: 100%; flex-shrink: 0; }
+  .result-overlay { inset: 76px 0 0; }
+}
+@media (max-height: 600px) and (min-width: 521px) and (max-width: 800px) {
+  .result-overlay { top: 65px; }
 }
