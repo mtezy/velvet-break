@@ -14,6 +14,9 @@ import { CueLocker } from './cue-locker.ts';
 import { OfflineGame } from './offline.ts';
 import { seededRandom, type CpuDifficulty } from './cpu.ts';
 import { setupOnboarding } from './onboarding.ts';
+import { CAMPAIGN_STORAGE_KEY, bestMissionRecord, readCampaignProgress, type MissionRecord } from './campaign-progress.ts';
+import { DailyLeaderboard, dailyBoardKey, dailyDate, dailyDay, dailyMission, dailyScore } from './daily.ts';
+import manifest from '../opengame.json';
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const canvas=$<HTMLCanvasElement>('game'),powerInput=$<HTMLInputElement>('power');
@@ -23,19 +26,23 @@ const cameraRig=new CameraRig(renderer,room),cueLocker=new CueLocker(renderer);
 let online:OnlineGame|undefined;
 let offline:OfflineGame|undefined,cpuResultShown=false;
 const cpuDialog=$<HTMLDialogElement>('cpu-dialog');
+const dailyDialog=$<HTMLDialogElement>('daily-dialog');
 const guide=$<HTMLDialogElement>('guide-dialog'),pauseDialog=$<HTMLDialogElement>('pause-dialog');
 const onboarding=$<HTMLDialogElement>('onboarding-dialog');
 const audio=new ClubAudio();
-interface Record {stars:number;shots:number;}
-let records:(Record|null)[]=Array(12).fill(null);
-try{const stored=JSON.parse(localStorage.getItem('velvet-break-v1')??'null');if(Array.isArray(stored))records=missions.map((_,i)=>{const r=stored[i];return r&&Number.isInteger(r.stars)&&r.stars>=1&&r.stars<=3&&Number.isInteger(r.shots)&&r.shots>0?{stars:r.stars,shots:r.shots}:null;});}catch{/* A private browsing session still gets the entire game. */}
-let index=0,practice=false,session=new Session(missions[0]),angle=Math.atan2(-120,-250),power=.45,charging=false,chargeStarted=0;
+let records:(MissionRecord|null)[]=Array(missions.length).fill(null);
+try{records=readCampaignProgress(localStorage.getItem(CAMPAIGN_STORAGE_KEY),missions.length);}catch{/* A private browsing session still gets the entire game. */}
+let index=0,practice=false,challengeDay:number|undefined,session=new Session(missions[0]),angle=Math.atan2(-120,-250),power=.45,charging=false,chargeStarted=0;
 let paused=false,hostPaused=false,lastFrame=performance.now(),accumulator=0,outcomeShown=false,particles:Particle[]=[],floatTimeout=0;
 let pointerId:number|null=null,shotAngle=angle,keys=new Set<string>();
 const fixedStep=1/240;
 let lastHud='',onlineResultShown=false;
 let titleOpen=true,shotPotCount=0;const titleBalls=practiceLayout();
 let spin:Spin={x:0,y:0};
+const dailyLeaderboard=new DailyLeaderboard(()=>localStorage,async()=>{
+  await platformReady;
+  return og.capabilities.includes('leaderboards')?og.leaderboard(dailyBoardKey):null;
+});
 function setSpin(value:Spin){
   spin=clampSpin(value);const dot=$('spin-dot');dot.style.left=`${50+spin.x*43}%`;dot.style.top=`${50-spin.y*43}%`;
   $('spin-value').textContent=Math.hypot(spin.x,spin.y)<.01?'Centre':`${spin.x<0?'L':'R'}${Math.round(Math.abs(spin.x)*100)} ${spin.y<0?'D':'F'}${Math.round(Math.abs(spin.y)*100)}`;
@@ -59,7 +66,7 @@ function startOffline(){
   cpuResultShown=false;particles=[];accumulator=0;angle=Math.atan2(apex.y-cue.y-TABLE.radius*.4,apex.x-cue.x);power=.9;powerInput.value='90';setSpin({x:0,y:0});
   $('result-overlay').classList.add('hidden');lastHud='';updateHud();
 }
-function restartCurrent(){if(offline)startOffline();else loadMission(index,practice);}
+function restartCurrent(){if(offline)startOffline();else loadMission(index,practice,challengeDay===undefined?undefined:dailyDay());}
 function setTitle(value:boolean){
   if(value&&online?.active){toast('Leave the online room before returning to the title.');return;}
   cancelCharge();keys.clear();titleOpen=value;document.body.classList.toggle('title-open',value);renderer.setTitleMode(value);
@@ -83,35 +90,45 @@ function handleEvents(events:import('./physics.ts').PhysicsEvent[]){
     }
   }
 }
-function save(){try{localStorage.setItem('velvet-break-v1',JSON.stringify(records));}catch{toast('Session saved in memory. Browser storage is unavailable.');}}
+function save(){try{localStorage.setItem(CAMPAIGN_STORAGE_KEY,JSON.stringify(records));}catch{toast('Session saved in memory. Browser storage is unavailable.');}}
+function renderMissionBest(){
+  const best=records[index];$('best-score').innerHTML=`YOUR BEST<br><b>${best?'✦'.repeat(best.stars)+'·'.repeat(3-best.stars):'— — —'}</b>`;
+}
+function renderDailyBest(day:number){$('best-score').innerHTML=`TODAY’S BEST<br><b>${dailyLeaderboard.best(day)??'—'}</b>`;}
+function currentTip(){
+  const m=session.mission;
+  if(practice)return 'No timer, no shot limit. A full rack and a little room to experiment.';
+  return challengeDay===undefined?`${m.tip} Finish in ${m.par} ${m.par===1?'shot':'shots'} or fewer for 3 stars.`:m.tip;
+}
 function renderMissions(){
-  let act=0;
+  let act=0;const campaign=!practice&&challengeDay===undefined;
   $('missions').innerHTML=missions.map((m,i)=>{
     const heading=m.act!==act?`<p class="act-title">0${m.act} / ${m.chapter.toUpperCase()}</p>`:'';act=m.act;
     const record=records[i];
-    return heading+`<button class="mission-button ${i===index&&!practice?'selected':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}${record?`, ${record.stars} stars`:''}" ${i===index&&!practice?'aria-current="true"':''}><span class="mission-index">${record?'✓':String(i+1).padStart(2,'0')}</span><span><span class="mission-name">${m.title}</span><span class="mission-stars ${record?'earned':''}">${record?'✦'.repeat(record.stars)+'·'.repeat(3-record.stars):'· · ·'}</span></span>${i===index&&!practice?'<span class="mission-arrow">↗</span>':''}</button>`;
+    return heading+`<button class="mission-button ${i===index&&campaign?'selected':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}${record?`, ${record.stars} of 3 stars`:''}" ${i===index&&campaign?'aria-current="true"':''}><span class="mission-index">${record?'✓':String(i+1).padStart(2,'0')}</span><span><span class="mission-name">${m.title}</span><span class="mission-stars ${record?'earned':''}">${record?'✦'.repeat(record.stars)+'·'.repeat(3-record.stars):'· · ·'}</span></span>${i===index&&campaign?'<span class="mission-arrow">↗</span>':''}</button>`;
   }).join('');
   const completed=records.filter(Boolean).length;const stars=records.reduce((n,r)=>n+(r?.stars??0),0);
   $('mission-count').textContent=`${completed} / 12`;$('total-stars').textContent=String(stars);$('campaign-progress').style.width=`${completed/12*100}%`;
 }
-function loadMission(next:number,free=false){
+function loadMission(next:number,free=false,day?:number){
   cameraRig.close();cueLocker.inspect(false);
   document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;
   offline=undefined;$('cpu-nav').classList.remove('active');
   if(online?.active)online.leave();
-  cancelCharge();setSpin({x:0,y:0});index=next;practice=free;session=new Session(missions[next],free);particles=[];outcomeShown=false;accumulator=0;
-  angle=next===0?Math.atan2(-120,-250):-Math.PI/4;power=.45;powerInput.value='45';
-  $('result-overlay').classList.add('hidden');
-  const m=missions[index];
-  $('mission-number').textContent=practice?'∞':String(index+1).padStart(2,'0');
+  const m=day===undefined?missions[next]:dailyMission(day);
+  cancelCharge();setSpin({x:0,y:0});index=next;practice=free;challengeDay=day;session=new Session(m,free);particles=[];outcomeShown=false;accumulator=0;
+  const [cue,target]=session.balls;
+  angle=day!==undefined?Math.atan2(target.y-cue.y,target.x-cue.x):next===0?Math.atan2(-120,-250):-Math.PI/4;power=.45;powerInput.value='45';
+  $('result-overlay').classList.add('hidden');$('result-overlay').classList.remove('rune-victory');
+  $('mission-number').textContent=day!==undefined?'✦':practice?'∞':String(index+1).padStart(2,'0');
   $('mission-title').textContent=practice?'The open table':m.title;
-  $('mission-chapter').textContent=practice?'NO PRESSURE / JUST POOL':`CHAPTER 0${m.act} / ${m.chapter.toUpperCase()}`;
+  $('mission-chapter').textContent=day!==undefined?`${m.chapter} / UTC DAILY TABLE`:practice?'NO PRESSURE / JUST POOL':`CHAPTER 0${m.act} / ${m.chapter.toUpperCase()}`;
   $('difficulty').textContent=practice?'FREE PLAY':m.difficulty.toUpperCase();
   $('objective').textContent=practice?'Clear the rack. Take your time.':m.objective;
-  $('mission-tip').textContent=practice?'No timer, no shot limit. A full rack and a little room to experiment.':m.tip;
-  $('campaign-nav').classList.toggle('active',!practice);$('practice-nav').classList.toggle('active',practice);
-  const best=records[index];$('best-score').innerHTML=practice?'YOUR TABLE<br><b>∞</b>':`YOUR BEST<br><b>${best?'✦'.repeat(best.stars)+'·'.repeat(3-best.stars):'— — —'}</b>`;
-  renderMissions();updateHud();
+  $('mission-tip').textContent=currentTip();
+  $('campaign-nav').classList.toggle('active',!practice&&day===undefined);$('practice-nav').classList.toggle('active',practice);$('daily-nav').classList.toggle('active',day!==undefined);
+  if(day!==undefined)renderDailyBest(day);else if(practice)$('best-score').innerHTML='YOUR TABLE<br><b>∞</b>';else renderMissionBest();
+  renderMissions();lastHud='';updateHud();
 }
 function updateHud(){
   const duel=versusMatch();
@@ -136,7 +153,7 @@ function updateHud(){
     const blocked=!offline.canShoot||paused||hostPaused;$<HTMLButtonElement>('shoot-button').disabled=blocked;powerInput.disabled=blocked;$<HTMLButtonElement>('restart-button').disabled=false;
     $('power-value').textContent=`${Math.round(power*100)}%`;$('table-status').textContent=paused||hostPaused?'PAUSED':match.reason+warning;
     $('mission-tip').textContent=`${match.reason} ${VS_RULES[match.mode]}`;$('best-score').innerHTML='OFFLINE<br><b>CPU</b>';
-    for(const id of ['campaign-nav','practice-nav','online-nav'])$(id).classList.remove('active');$('cpu-nav').classList.add('active');
+    for(const id of ['campaign-nav','practice-nav','online-nav','daily-nav'])$(id).classList.remove('active');$('cpu-nav').classList.add('active');
     if(match.winner!==null&&!cpuResultShown){
       cpuResultShown=true;cancelCharge();const won=match.winner===0;
       $('result-kicker').textContent='THE CLUB CHALLENGE';$('result-title').textContent=won?'You beat the CPU!':'CPU takes the table.';$('result-description').textContent=match.reason;$('result-stars').textContent=won?'✦':'↻';$('next-mission').textContent='Rematch';$('result-retry').textContent='Back to menu';$('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);if(won)audio.win();
@@ -154,7 +171,7 @@ function updateHud(){
     $<HTMLButtonElement>('shoot-button').disabled=!online.canShoot;powerInput.disabled=!online.canShoot;$<HTMLButtonElement>('restart-button').disabled=true;
     $('power-value').textContent=`${Math.round(power*100)}%`;$('table-status').textContent=online.connected&&duel?duel.reason+warning:'WAITING AT THE PORTAL';
     $('mission-tip').textContent=VS_RULES[duel?.mode??online.mode];$('best-score').innerHTML='ONLINE<br><b>ᛟ</b>';
-    $('online-nav').classList.add('active');$('campaign-nav').classList.remove('active');$('practice-nav').classList.remove('active');
+    $('online-nav').classList.add('active');$('campaign-nav').classList.remove('active');$('practice-nav').classList.remove('active');$('daily-nav').classList.remove('active');
     if(!duel||duel.winner===null){$('result-overlay').classList.add('hidden');onlineResultShown=false;}
     return;
   }
@@ -171,29 +188,64 @@ function updateHud(){
 }
 function toast(text:string){clearTimeout(floatTimeout);$('floating-message').textContent=text;$('floating-message').classList.add('visible');floatTimeout=window.setTimeout(()=>$('floating-message').classList.remove('visible'),3200);}
 function doShoot(value=power){
-  if(titleOpen||renderer.cueInspection||paused||hostPaused||guide.open||pauseDialog.open||cpuDialog.open)return;
+  if(titleOpen||renderer.cueInspection||paused||hostPaused||guide.open||pauseDialog.open||cpuDialog.open||dailyDialog.open)return;
   if(offline){if(offline.canShoot&&offline.match.shoot(0,angle,value,spin)){setSpin({x:0,y:0});shotEffect(value);updateHud();}return;}
   if(online?.active){if(online.shoot(angle,value,spin)){setSpin({x:0,y:0});if(online.isHost)shotEffect(value);updateHud();}return;}
-  if(session.shoot(angle,value,spin)){setSpin({x:0,y:0});shotEffect(value);og.track('shot_taken',{mission:practice?0:index+1});updateHud();}
+  if(session.shoot(angle,value,spin)){setSpin({x:0,y:0});shotEffect(value);if(challengeDay===undefined)og.track('shot_taken',{mission:practice?0:index+1});updateHud();}
 }
 function cancelCharge(){charging=false;pointerId=null;keys.delete('Space');}
-function startCharge(){if(!canShoot()||paused||hostPaused||guide.open||pauseDialog.open||cpuDialog.open)return;charging=true;shotAngle=angle;chargeStarted=performance.now();}
+function startCharge(){if(!canShoot()||paused||hostPaused||guide.open||pauseDialog.open||cpuDialog.open||dailyDialog.open)return;charging=true;shotAngle=angle;chargeStarted=performance.now();}
 function finishCharge(){if(!charging)return;const elapsed=performance.now()-chargeStarted;charging=false;if(elapsed>140){angle=shotAngle;doShoot(power);}updateHud();}
 function showResult(){
   if(outcomeShown)return;outcomeShown=true;cancelCharge();
   const won=session.outcome==='won';
+  $('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);
+  if(won){audio.win();for(const b of session.balls)if(b.id!==0)renderer.pulse(b.x,b.y,room.selected.trim,110,1.2);}
+  if(challengeDay!==undefined){
+    const score=won?dailyScore(session.remaining,session.timeLeft):0;
+    if(won){dailyLeaderboard.record(challengeDay,score);renderDailyBest(challengeDay);}
+    $('result-kicker').textContent=`THE DAILY TABLE / ${dailyDate(challengeDay)}`;
+    $('result-title').textContent=won?`${score} points.`:'Daily run incomplete.';
+    $('result-description').textContent=won?`${session.reason} Best on this browser: ${dailyLeaderboard.best(challengeDay)}.`:session.reason;
+    $('result-stars').textContent=won?'✦':'↻';
+    $('next-mission').textContent=won?'Daily leaderboard ↗':'Try again ↗';
+    $('result-retry').textContent=won?'Play again':'Daily leaderboard';
+    updateHud();return;
+  }
   $('result-kicker').textContent=won?(index===11&&!practice?'WELCOME TO THE LEGENDS':'BEAUTIFULLY PLAYED'):'THE NIGHT ISN’T OVER';
   $('result-title').textContent=won?(practice?'A clean table.':index===11?'You own the table.':'Mission complete.'):'Find another angle.';
-  $('result-description').textContent=session.reason;
+  $('result-description').textContent=won&&!practice?`${session.reason} ${session.stars} of 3 stars earned.`:session.reason;
   $('result-stars').textContent=won&&!practice?'✦'.repeat(session.stars)+'☆'.repeat(3-session.stars):won?'✦':'↻';
   $('next-mission').innerHTML=won&&!practice&&index<11?'Next mission <span>↗</span>':won&&!practice?'Back to the club <span>↗</span>':'Try again <span>↗</span>';
   $('result-retry').textContent=won?'Play again':'Back to campaign';
-  $('result-overlay').classList.remove('hidden');
-  if(won){audio.win();$('result-overlay').classList.add('rune-victory');for(const b of session.balls)if(b.id!==0)renderer.pulse(b.x,b.y,room.selected.trim,110,1.2);if(!practice){const old=records[index];if(!old||session.stars>old.stars||session.shots<old.shots){records[index]={stars:Math.max(old?.stars??0,session.stars),shots:Math.min(old?.shots??Infinity,session.shots)};save();}renderMissions();$('best-score').innerHTML=`YOUR BEST<br><b>${'✦'.repeat(records[index]!.stars)}</b>`;og.track('mission_complete',{mission:index+1,stars:session.stars,shots:session.shots});}}
-  else og.track('mission_failed',{mission:index+1});
+  if(won&&!practice){const best=bestMissionRecord(records[index],{stars:session.stars,shots:session.shots});if(best!==records[index]){records[index]=best;save();}renderMissions();renderMissionBest();og.track('mission_complete',{mission:index+1,stars:session.stars,shots:session.shots});}
+  else if(!won)og.track('mission_failed',{mission:index+1});
   updateHud();
 }
 function setPause(value:boolean){if(titleOpen)return;if(online?.active){if(value)toast('Online duels cannot be paused. Keep the host tab visible.');return;}paused=value;cancelCharge();if(value&&!pauseDialog.open)pauseDialog.showModal();if(!value&&pauseDialog.open)pauseDialog.close();updateHud();}
+let dailyView=0;
+async function openDaily(){
+  cancelCharge();keys.clear();
+  const view=++dailyView,day=dailyDay(),best=dailyLeaderboard.best(day);
+  $('daily-date').textContent=`${dailyDate(day)} UTC / NEW TABLE AT MIDNIGHT`;
+  $('daily-personal').textContent=best===undefined?'No score yet on this browser.':`Best on this browser: ${best} points.`;
+  $('daily-source').textContent='Loading scores…';$('daily-entries').replaceChildren();
+  dailyDialog.showModal();
+  const ranking=await dailyLeaderboard.ranking(day);
+  if(view!==dailyView||!dailyDialog.open)return;
+  $('daily-source').textContent=ranking.source==='opengame'?'OpenGame · top 10 players':'This browser · top 10 attempts';
+  if(!ranking.entries.length){$('daily-source').textContent+=' · No scores yet.';return;}
+  for(const {rank,name,score} of ranking.entries){
+    const row=document.createElement('li');
+    const place=document.createElement('span'),player=document.createElement('span'),points=document.createElement('strong');
+    place.textContent=String(rank);player.textContent=name;points.textContent=String(score);
+    row.append(place,player,points);$('daily-entries').append(row);
+  }
+}
+function startDaily(){
+  if(dailyDialog.open)dailyDialog.close();
+  loadMission(index,false,dailyDay());setTitle(false);
+}
 function pointerPosition(e:PointerEvent){return renderer.pointer(e.clientX,e.clientY);}
 canvas.addEventListener('pointermove',e=>{if(!canShoot()||charging||e.buttons===2)return;const p=pointerPosition(e),cue=currentBalls()[0];angle=Math.atan2(p.y-cue.y,p.x-cue.x);});
 canvas.addEventListener('pointerdown',e=>{
@@ -235,9 +287,13 @@ $('cpu-close').addEventListener('click',()=>cpuDialog.close());
 $('cpu-start').addEventListener('click',startOffline);
 $('restart-button').addEventListener('click',restartCurrent);
 $('missions').addEventListener('click',e=>{const btn=(e.target as HTMLElement).closest<HTMLElement>('[data-mission]');if(btn)loadMission(Number(btn.dataset.mission));});
-$('next-mission').addEventListener('click',()=>{if(offline){startOffline();return;}if(online?.active){online.requestRematch();$('result-overlay').classList.add('hidden');return;}loadMission(session.outcome==='won'&&!practice?(index+1)%12:index,practice);});
-$('result-retry').addEventListener('click',()=>{if(offline){loadMission(index);setTitle(true);return;}loadMission(session.outcome==='won'?index:0,session.outcome==='won'&&practice);});
-$('campaign-nav').addEventListener('click',()=>{cameraRig.close();cueLocker.inspect(false);if(offline||practice||online?.active)loadMission(index);document.body.classList.toggle('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;});
+$('next-mission').addEventListener('click',()=>{if(offline){startOffline();return;}if(online?.active){online.requestRematch();$('result-overlay').classList.add('hidden');return;}if(challengeDay!==undefined){if(session.outcome==='won')void openDaily();else startDaily();return;}loadMission(session.outcome==='won'&&!practice?(index+1)%12:index,practice);});
+$('result-retry').addEventListener('click',()=>{if(offline){loadMission(index);setTitle(true);return;}if(challengeDay!==undefined&&!online?.active){if(session.outcome==='won')startDaily();else void openDaily();return;}loadMission(session.outcome==='won'?index:0,session.outcome==='won'&&practice);});
+$('campaign-nav').addEventListener('click',()=>{cameraRig.close();cueLocker.inspect(false);if(offline||practice||challengeDay!==undefined||online?.active)loadMission(index);document.body.classList.toggle('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;});
+$('daily-nav').addEventListener('click',()=>void openDaily());
+$('title-daily').addEventListener('click',()=>void openDaily());
+$('daily-close').addEventListener('click',()=>dailyDialog.close());
+$('daily-play').addEventListener('click',startDaily);
 $('practice-nav').addEventListener('click',()=>loadMission(index,true));
 $('online-nav').addEventListener('click',()=>{offline=undefined;$('cpu-nav').classList.remove('active');cameraRig.close();cueLocker.inspect(false);cancelCharge();paused=false;hostPaused=false;if(pauseDialog.open)pauseDialog.close();document.body.classList.toggle('lobby-expanded');document.body.classList.remove('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;online?.enter();});
 $('vault-button').addEventListener('click',()=>{const vault=document.querySelector<HTMLDetailsElement>('.table-room')!;vault.open=!vault.open;cameraRig.close();document.body.classList.remove('missions-open','lobby-expanded');});
@@ -249,7 +305,7 @@ for(const [id,direction]of [['title-prev',-1],['title-next',1]] as const)$(id).a
 $('title-cpu').addEventListener('click',()=>cpuDialog.showModal());
 $('guide-nav').addEventListener('click',()=>{cancelCharge();guide.showModal();});
 document.querySelector('.dialog-close')!.addEventListener('click',()=>guide.close());$('close-guide').addEventListener('click',()=>guide.close());
-$('hint-button').addEventListener('click',()=>toast(offline?VS_RULES[offline.match.mode]:practice?'Try a 70–90% break toward the head of the rack.':session.mission.tip));
+$('hint-button').addEventListener('click',()=>toast(offline?VS_RULES[offline.match.mode]:practice?'Try a 70–90% break toward the head of the rack.':currentTip()));
 $('sound-button').addEventListener('click',()=>{const enabled=audio.toggle();$('sound-state').textContent=enabled?'ON':'OFF';$('sound-button').setAttribute('aria-label',enabled?'Mute sound':'Enable sound');$('sound-button').style.color=enabled?'var(--accent)':'';});
 $('fullscreen-button').addEventListener('click',()=>{if(og.env.embedded&&og.env.connected){og.fullscreen.request();}else if(document.fullscreenElement){void document.exitFullscreen().catch(()=>{});}else{void document.documentElement.requestFullscreen().catch(()=>toast('Fullscreen is not available in this preview.'));}});
 $('resume-button').addEventListener('click',()=>setPause(false));
@@ -257,10 +313,10 @@ pauseDialog.addEventListener('cancel',e=>{e.preventDefault();setPause(false);});
 window.addEventListener('keydown',e=>{
   if(onboarding.open)return;
   // Escape exits the editor even while a range or text input owns focus.
-  if(e.code==='Escape'&&!guide.open&&!pauseDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
+  if(e.code==='Escape'&&!guide.open&&!pauseDialog.open&&!dailyDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
   if((e.target as HTMLElement).matches('input,textarea,select'))return;
   if((e.target as HTMLElement).closest('button,summary')&&['Space','Enter'].includes(e.code))return;
-  if(guide.open||pauseDialog.open||cpuDialog.open){if(e.code==='KeyP'&&pauseDialog.open)setPause(false);return;}
+  if(guide.open||pauseDialog.open||cpuDialog.open||dailyDialog.open){if(e.code==='KeyP'&&pauseDialog.open)setPause(false);return;}
   if(titleOpen){if(e.code==='Enter')setTitle(false);return;}
   if(['KeyW','KeyS','KeyA','KeyD','KeyC'].includes(e.code)){e.preventDefault();if(canShoot()&&!paused&&!hostPaused)setSpin(e.code==='KeyC'?{x:0,y:0}:{x:spin.x+(e.code==='KeyD'?.1:e.code==='KeyA'?-.1:0),y:spin.y+(e.code==='KeyW'?.1:e.code==='KeyS'?-.1:0)});return;}
   if(['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();
@@ -276,7 +332,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelChar
 new ResizeObserver(()=>renderer.resize()).observe(canvas);
 function frame(now:number){
   const realElapsed=Math.max(0,(now-lastFrame)/1000),elapsed=Math.min(realElapsed,.25);lastFrame=now;
-  if(online?.active||(!titleOpen&&!paused&&!hostPaused&&!guide.open&&!pauseDialog.open&&!cpuDialog.open)){
+  if(online?.active||(!titleOpen&&!paused&&!hostPaused&&!guide.open&&!pauseDialog.open&&!cpuDialog.open&&!dailyDialog.open)){
     if(canShoot()&&!charging&&!guide.open){const speed=(keys.has('ShiftLeft')||keys.has('ShiftRight'))?.16:.8;if(keys.has('ArrowLeft'))angle-=elapsed*speed;if(keys.has('ArrowRight'))angle+=elapsed*speed;if(keys.has('ArrowUp'))power=Math.min(1,power+elapsed*.3);if(keys.has('ArrowDown'))power=Math.max(.1,power-elapsed*.3);}
     if(charging){power=Math.min(1,.1+(now-chargeStarted)/1400*.9);powerInput.value=String(Math.round(power*100));}
     if(!online?.active&&!offline)session.advanceClock(realElapsed);
@@ -304,4 +360,4 @@ if(new URLSearchParams(location.search).has('room')){setTitle(false);online.ente
 else setupOnboarding(onboarding,$('title-play'));
 requestAnimationFrame(frame);
 // Platform handshake never blocks the first frame or standalone play.
-void og.init().then(()=>{og.ready();og.onPause(value=>{hostPaused=value;cancelCharge();});og.audio.onHostMute(value=>{audio.hostMuted=value;});}).catch(()=>{});
+const platformReady=og.init({manifest}).then(()=>{og.ready();og.onPause(value=>{hostPaused=value;cancelCharge();});og.audio.onHostMute(value=>{audio.hostMuted=value;});}).catch(()=>{});
