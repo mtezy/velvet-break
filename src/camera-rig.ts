@@ -6,6 +6,7 @@ const axes=['azimuth','elevation','distance','targetX','targetZ'] as const;
 export class CameraRig {
   saved:CameraSettings|null=null;
   constructor(public renderer:PoolRenderer,public room:TableRoom){
+    room.onViewChange=()=>this.refresh();
     try{this.saved=cameraSettings(JSON.parse(localStorage.getItem('velvet-break-camera-v1')??'null'));}catch{}
     el<HTMLButtonElement>('view-custom').disabled=!this.saved||!renderer.renderer;
     if(this.saved){renderer.customCamera=this.saved;room.setView('custom');}

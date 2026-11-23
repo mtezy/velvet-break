@@ -6,7 +6,7 @@ import { getTableDesign, type TableDesign } from './tables.ts';
 import { buildTableModel, disposeTableModel } from './table-model.ts';
 import { buildClubRoom } from './club-room.ts';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DEFAULT_CAMERA, type CameraSettings } from './camera-settings.ts';
+import { DEFAULT_CAMERA, cameraFit, type CameraSettings } from './camera-settings.ts';
 import { buildCueModel } from './cue-model.ts';
 import { getCueDesign, type CueDesign } from './cues.ts';
 import { contactShadow } from './surfaces.ts';
@@ -21,7 +21,7 @@ export class PoolRenderer {
   pulses:{mesh:THREE.Mesh;age:number;duration:number;radius:number}[]=[];
   raycaster=new THREE.Raycaster();plane=new THREE.Plane(new THREE.Vector3(0,1,0),-12);
   balls=new Map<number,{mesh:THREE.Mesh;shadow:THREE.Mesh;label:THREE.Sprite;lastX:number;lastY:number}>();
-  labels=true;
+  labels=true;orbiting=false;
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
   shadowMap=contactShadow();
@@ -47,6 +47,7 @@ export class PoolRenderer {
     this.controls.enablePan=true;this.controls.screenSpacePanning=false;this.controls.minDistance=1100;this.controls.maxDistance=8000;
     this.controls.minPolarAngle=.12;this.controls.maxPolarAngle=Math.PI*.39;
     this.controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};this.controls.touches={ONE:null,TWO:null};
+    this.controls.addEventListener('start',()=>{this.orbiting=true;this.dirty=true;});this.controls.addEventListener('end',()=>{this.orbiting=false;this.dirty=true;});
     this.controls.addEventListener('change',()=>{const t=this.controls!.target,x=THREE.MathUtils.clamp(t.x,-400,400),z=THREE.MathUtils.clamp(t.z,-300,300);this.camera.position.x+=x-t.x;this.camera.position.z+=z-t.z;t.x=x;t.z=z;this.dirty=true;});this.setView('club');
     this.scene.add(new THREE.HemisphereLight(0xc5e2ed,0x171712,.7));
     const key=new THREE.DirectionalLight(0xfff4df,2.1);key.position.set(-350,1100,350);this.scene.add(key);
@@ -70,11 +71,12 @@ export class PoolRenderer {
     this.scene.remove(this.tableModel);disposeTableModel(this.tableModel);this.tableModel=buildTableModel(design,!this.software);this.scene.add(this.tableModel);
   }
   setView(view:'club'|'overhead'|'custom'){
-    if(view==='custom'){this.view=view;const p=this.customCamera,az=p.azimuth*Math.PI/180,el=Math.min(89.999,p.elevation)*Math.PI/180,fit=Math.max(1,1.55/Math.max(.35,this.camera.aspect)),distance=p.distance*fit,x=p.targetX??0,z=p.targetZ??0;if(this.controls)this.controls.minPolarAngle=.00001;this.camera.position.set(x+Math.sin(az)*Math.cos(el)*distance,Math.sin(el)*distance,z+Math.cos(az)*Math.cos(el)*distance);this.controls?.target.set(x,0,z);this.camera.lookAt(x,0,z);this.controls?.update();this.dirty=true;return;}
-    this.view=view;if(this.controls)this.controls.minPolarAngle=view==='overhead'?.00001:.12;const fit=Math.max(1,1.55/Math.max(.35,this.camera.aspect));this.camera.position.copy(view==='club'?new THREE.Vector3(75,1050,820).multiplyScalar(fit):new THREE.Vector3(0,1340*fit,.1));
-    this.controls?.target.set(0,0,0);this.camera.lookAt(this.controls?.target??new THREE.Vector3());this.controls?.update();this.dirty=true;
+    this.view=view;const portrait=window.innerWidth<=520&&window.innerHeight>window.innerWidth;
+    const p:CameraSettings=view==='custom'?this.customCamera:view==='overhead'?{azimuth:portrait?90:0,elevation:90,distance:1340}:{azimuth:portrait?90:4,elevation:portrait?65:53,distance:1350};
+    const az=p.azimuth*Math.PI/180,el=Math.min(89.999,p.elevation)*Math.PI/180,distance=p.distance*cameraFit(p.azimuth,p.elevation,this.camera.aspect),x=p.targetX??0,z=p.targetZ??0;
+    if(this.controls)this.controls.minPolarAngle=.00001;this.camera.position.set(x+Math.sin(az)*Math.cos(el)*distance,Math.sin(el)*distance,z+Math.cos(az)*Math.cos(el)*distance);this.controls?.target.set(x,0,z);this.camera.lookAt(x,0,z);this.controls?.update();this.dirty=true;
   }
-  cameraSettings():CameraSettings{const target=this.controls?.target??new THREE.Vector3(),offset=this.camera.position.clone().sub(target),distance=offset.length(),fit=Math.max(1,1.55/Math.max(.35,this.camera.aspect));return{azimuth:Math.atan2(offset.x,offset.z)*180/Math.PI,elevation:Math.max(25,Math.min(90,Math.asin(offset.y/distance)*180/Math.PI)),distance:Math.max(1100,Math.min(2600,distance/fit)),targetX:THREE.MathUtils.clamp(target.x,-400,400),targetZ:THREE.MathUtils.clamp(target.z,-300,300)};}
+  cameraSettings():CameraSettings{const target=this.controls?.target??new THREE.Vector3(),offset=this.camera.position.clone().sub(target),distance=offset.length(),azimuth=Math.atan2(offset.x,offset.z)*180/Math.PI,elevation=Math.max(25,Math.min(90,Math.asin(offset.y/distance)*180/Math.PI));return{azimuth,elevation,distance:Math.max(1100,Math.min(2600,distance/cameraFit(azimuth,elevation,this.camera.aspect))),targetX:THREE.MathUtils.clamp(target.x,-400,400),targetZ:THREE.MathUtils.clamp(target.z,-300,300)};}
   setTitleMode(value:boolean){this.titleMode=value;if(this.controls)this.controls.enabled=!value;if(value){this.camera.position.set(1100,420,1390);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;}
   setQuality(value:'auto'|'high'|'economy'){
     this.quality=value;this.renderScale=value==='economy'?.6:value==='high'?Math.min(window.devicePixelRatio,1.5):this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer?.setPixelRatio(this.renderScale);this.dirty=true;
@@ -117,6 +119,8 @@ export class PoolRenderer {
     this.lastRenderKey=renderKey;this.dirty=false;
     const isMoving=state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
     if(this.quality==='auto'&&isMoving){this.averageFrame=this.averageFrame*.9+dt*.1;if(++this.qualityFrames%24===0&&this.averageFrame>.055&&this.renderScale>.48){this.renderScale=Math.max(.48,this.renderScale*.86);this.renderer.setPixelRatio(this.renderScale);}}
+    // A cached resting frame can be crisp without paying for it during shots/orbits.
+    const scale=this.quality==='auto'&&!isMoving&&!this.orbiting?Math.max(this.renderScale,Math.min(window.devicePixelRatio,1)):this.renderScale;if(this.renderer.getPixelRatio()!==scale)this.renderer.setPixelRatio(scale);
     const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode;
     for(const pulse of [...this.pulses]){pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));

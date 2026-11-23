@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cameraSettings, DEFAULT_CAMERA } from '../src/camera-settings.ts';
+import { cameraSettings, cameraFit, DEFAULT_CAMERA } from '../src/camera-settings.ts';
 import { CUE_DESIGNS, getCueDesign } from '../src/cues.ts';
 test('saved camera angles round-trip, including the zero azimuth',()=>{assert.deepEqual(cameraSettings(JSON.parse(JSON.stringify(DEFAULT_CAMERA))),DEFAULT_CAMERA);assert.deepEqual(cameraSettings({azimuth:0,elevation:82,distance:2600}),{azimuth:0,elevation:82,distance:2600});});
 test('malformed storage cannot move the camera inside or outside its safe range',()=>{for(const bad of [null,[],{},'camera',{...DEFAULT_CAMERA,azimuth:NaN},{...DEFAULT_CAMERA,elevation:Infinity},{...DEFAULT_CAMERA,distance:0},{...DEFAULT_CAMERA,azimuth:181},{...DEFAULT_CAMERA,elevation:91},{...DEFAULT_CAMERA,distance:9000},{...DEFAULT_CAMERA,targetX:NaN},{...DEFAULT_CAMERA,targetZ:null},{...DEFAULT_CAMERA,targetX:401},{...DEFAULT_CAMERA,targetZ:-301}])assert.equal(cameraSettings(bad),null);});
 test('saved framing supports top-down positions and legacy angle-only storage',()=>{const p={azimuth:0,elevation:90,distance:1340,targetX:-150,targetZ:90};assert.deepEqual(cameraSettings(p),p);assert.deepEqual(cameraSettings({azimuth:13,elevation:30,distance:1640}),{azimuth:13,elevation:30,distance:1640});});
+test('camera fit accounts for rotation, including a lengthwise phone table',()=>{assert.equal(cameraFit(0,90,2),1);assert.ok(cameraFit(90,90,.9)<cameraFit(0,90,.9));for(const [az,el,aspect] of [[4,53,1.5],[90,65,.9],[90,90,.9],[0,90,.5]]){const fit=cameraFit(az,el,aspect),distance=1350*fit;assert.ok(fit>=1&&Number.isFinite(fit));assert.ok(Math.abs(distance/fit-1350)<.000001);}});
 test('unknown cue selections fall back safely and every cosmetic has a unique id',()=>{assert.equal(new Set(CUE_DESIGNS.map(d=>d.id)).size,6);for(const d of CUE_DESIGNS)assert.equal(getCueDesign(d.id),d);assert.equal(getCueDesign('<invalid>'),CUE_DESIGNS[0]);assert.equal(getCueDesign(null),CUE_DESIGNS[0]);});
