@@ -6,7 +6,7 @@ export function buildClubRoom(){
   const room=new THREE.Group();room.name='The Lantern Guild';
   const material=(color:string,roughness=.8,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness,metalness});
   const oak=material('#34251c'),edge=material('#63452b'),walnut=material('#231c18'),brass=material('#b28c48',.36,.6),stone=material('#303434'),velvet=material('#203e38'),black=material('#101b1c');
-  const plaster=material('#48433a'),bottleGreen=material('#244e3d',.22),bottleAmber=material('#9b612d',.25),ceramic=material('#bfaa83');
+  const plaster=material('#1d2c30'),bottleGreen=material('#173c30',.22),bottleAmber=material('#70502c',.25),ceramic=material('#bfaa83');
   const warm=new THREE.MeshBasicMaterial({color:'#ffe3a0'}),flame=new THREE.MeshBasicMaterial({color:'#fff3b9'}),blue=new THREE.MeshBasicMaterial({color:'#668d9b'});
   function mesh(g:THREE.BufferGeometry,m:THREE.Material,x=0,y=0,z=0){const object=new THREE.Mesh(g,m);object.position.set(x,y,z);room.add(object);return object;}
   function box(w:number,h:number,d:number,x:number,y:number,z:number,m:THREE.Material=oak){return mesh(new THREE.BoxGeometry(w,h,d),m,x,y,z);}
@@ -19,7 +19,16 @@ export function buildClubRoom(){
     c.fillStyle='#3a2c21';c.fillRect(0,0,1024,1024);
     for(let row=0;row<16;row++){const y=row*64;c.fillStyle=['#4e3b29','#463426','#56402c','#3c3025'][row%4];c.fillRect(0,y+1,1024,62);for(let i=0;i<35;i++){c.strokeStyle=i%3?'#aa815116':'#110c091f';c.beginPath();const yy=y+random()*64;c.moveTo(0,yy);c.bezierCurveTo(220,yy-3,620,yy+3,1024,yy);c.stroke();}for(let x=(row%3)*230;x<1024;x+=690){c.fillStyle='#191812';c.fillRect(x,y,2,64);c.fillRect(x+7,y+9,2,2);c.fillRect(x+7,y+52,2,2);}}
   });floorMap.wrapS=floorMap.wrapT=THREE.RepeatWrapping;floorMap.repeat.set(3,3);floorMap.anisotropy=4;
-  const floor=mesh(new THREE.PlaneGeometry(6500,6000),new THREE.MeshStandardMaterial({map:floorMap,roughness:.58}),0,-283,0);floor.rotation.x=-Math.PI/2;
+  const floor=mesh(new THREE.PlaneGeometry(6500,6000),new THREE.MeshStandardMaterial({map:floorMap,color:'#777c80',roughness:.42,metalness:.05}),0,-283,0);floor.rotation.x=-Math.PI/2;
+  // A fitted club carpet anchors the table in both the Club and Overhead views.
+  const rugMap=canvasMap(1024,640,c=>{
+    c.fillStyle='#0c2028';c.fillRect(0,0,1024,640);let seed=42;const random=()=>((seed=seed*16807%2147483647)/2147483647);
+    for(let i=0;i<20000;i++){c.fillStyle=i%2?'#ffffff08':'#00000020';c.fillRect(random()*1024,random()*640,1,1);}
+    c.strokeStyle='#a28f6070';c.lineWidth=1.3;c.strokeRect(24,24,976,592);c.strokeStyle='#a28f6030';c.strokeRect(31,31,962,578);
+    for(const [x,y] of [[44,44],[980,44],[44,596],[980,596]]){c.save();c.translate(x,y);c.rotate(Math.PI/4);c.strokeRect(-6,-6,12,12);c.restore();}
+    c.textAlign='center';c.font='11px Arial';c.fillStyle='#b9b6a766';c.fillText('V E L V E T   B R E A K   •   M E M B E R S   C L U B',512,610);
+  });
+  const rug=mesh(new THREE.PlaneGeometry(1780,1120),new THREE.MeshStandardMaterial({map:rugMap,roughness:1}),0,-282,10);rug.rotation.x=-Math.PI/2;
   // Dado panels, plaster, heavy posts and exposed roof trusses.
   box(5600,1500,80,0,410,-1550,plaster);box(5600,330,95,0,-120,-1498,walnut);box(5600,18,110,0,53,-1488,edge);
   for(const x of [-2600,-1700,-850,0,850,1700,2600]){box(60,1450,100,x,400,-1472);box(70,35,150,x,1070,-1450,edge);}
@@ -43,6 +52,10 @@ export function buildClubRoom(){
   for(const x of [-800,-330,140,610,1080]){box(420,155,10,x,-140,-1118,edge);box(380,125,12,x,-140,-1109,walnut);}
   function bottle(x:number,y:number,z:number,index:number){const m=index%3?bottleGreen:bottleAmber;cylinder(13,17,58,x,y+30,z,m);cylinder(6,8,27,x,y+71,z,m);cylinder(7,7,5,x,y+87,z,brass);cylinder(17.2,17.2,19,x,y+32,z,ceramic);}
   for(const y of [300,565]){box(1300,18,140,0,y,-1400,edge);for(let i=0;i<13;i++)bottle(-570+i*93,y+10,-1360,i);}
+  const amber=new THREE.MeshBasicMaterial({color:'#dca65e'});
+  for(const y of [288,553])box(1250,3,5,0,y,-1329,amber);
+  // Architectural wall lamps are emissive geometry, not extra shadow-casting lights.
+  for(const x of [-1980,-850,850,1980]){box(20,180,22,x,470,-1414,brass);box(7,160,8,x,470,-1398,amber);box(100,8,65,x,560,-1400,black);box(100,8,65,x,380,-1400,black);}
   // House crest, hand-painted with no external fonts or art.
   const crestMap=canvasMap(512,512,c=>{c.fillStyle='#182d2a';c.fillRect(0,0,512,512);c.strokeStyle='#9d7b43';c.lineWidth=3;c.strokeRect(18,18,476,476);c.strokeRect(25,25,462,462);c.textAlign='center';c.fillStyle='#d3b77b';c.font='110px Georgia';c.fillText('ᛟ',256,175);c.font='36px Georgia';c.fillText('VELVET BREAK',256,255);c.font='14px Georgia';c.fillText('T H E  L A N T E R N  G U I L D',256,305);c.font='12px Georgia';c.fillText('EST. MMXXVI  ·  PRECISION & FINESSE',256,360);});
   const crest=mesh(new THREE.PlaneGeometry(410,410),new THREE.MeshStandardMaterial({map:crestMap,roughness:.85}),0,820,-1430);crest.name='guild-crest';

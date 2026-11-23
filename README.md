@@ -2,6 +2,16 @@
 
 A late-night pool club. Twelve missions. One perfect shot.
 
+## Tournament visual update
+
+Club and Overhead now frame the playing surface more closely, with shaped cushion noses, bevelled walnut rails, fitted leather pocket mouths, recessed dark wells and worsted teal cloth. A bordered club rug, darker room and balanced warm/cool light keep the table in focus. The floating HUD is quieter and leaves the cloth visible.
+
+Balls use stronger tournament colours, glossy enamel/clearcoat, prefiltered studio reflections and soft contact shadows. **Numbers on/off** adds camera-facing numbers while balls are nearly at rest; the textured spheres and stripes still roll normally during a shot. Turn it off for the unlabelled material view.
+
+**Angle** also adjusts left/right and near/far framing independently of orbit, elevation and zoom. Middle-drag or Shift + right-drag pans on the table plane; touch screens use the sliders. **Centre the table** keeps the angle/zoom, **Save my angle** persists all five settings, and **My angle** restores them. Legacy angle-only saves remain supported, including zero azimuth. Overhead can be adjusted and saved without losing its top-down elevation.
+
+Textures are deterministic and generated only when models are built; there are no fetched assets, live reflection probes, full-scene shadow maps or added postprocessing passes. Static batching, idle-frame caching, adaptive Auto quality and manual Economy/High modes remain. Automated physics/rules checks and the production build pass; this VM uses software rendering, so real-laptop GPU frame rate is not certified here.
+
 ## Runebound update
 
 The **Lantern Guild** presentation replaces the page-like dashboard with a full-viewport, original 3D pool hall: timber floorboards and trusses, leaded windows, a back bar and hearth, brass pool lamps, cue racks, cups, candles and low-poly background guests. The title screen previews the actual room/table; its arrows inspect all eight builds before entry. Gameplay uses a compact floating HUD. **Missions** opens the campaign drawer, **Loadout** opens the table/cue vault, and **Menu** returns to the title without advancing a solo mission's clock. Online room controls collapse after connection (on phones, tap **Online VS** to reopen them).
