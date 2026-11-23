@@ -6,6 +6,6 @@
   "kind": "game",
   "build": {"command": "npm run build", "output": "dist"},
   "controls": ["keyboard", "mouse"],
-  "players": {"mode": "single", "min": 1, "max": 1},
-  "sdk": "^0.1"
+  "players": "single",
+  "sdk": "^0.5"
 }

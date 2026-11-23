@@ -13,9 +13,14 @@ export class Session {
     this.balls.forEach(b=>b.banks=0);this.shots++;this.started=true;this.inShot=true;this.scratched=false;
     strike(this.balls.find(b=>b.id===0)!,angle,power);return true;
   }
-  tick(dt:number):PhysicsEvent[]{
+  advanceClock(dt:number){
+    if(this.outcome!=='playing'||this.practice||!this.mission.time||!this.started)return;
+    this.timeLeft=Math.max(0,this.timeLeft-dt);
+    if(this.timeLeft===0){this.outcome='lost';this.reason='Time slipped away. Plan your opening and try again.';}
+  }
+  tick(dt:number,advanceClock=true):PhysicsEvent[]{
+    if(advanceClock)this.advanceClock(dt);
     if(this.outcome!=='playing')return [];
-    if(!this.practice&&this.mission.time&&this.started){this.timeLeft=Math.max(0,this.timeLeft-dt);if(this.timeLeft===0){this.outcome='lost';this.reason='Time slipped away. Plan your opening and try again.';return [];}}
     const events=simulate(this.balls,dt);
     for(const e of events){
       if(e.type!=='pot')continue;

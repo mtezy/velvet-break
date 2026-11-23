@@ -32,7 +32,7 @@ test('first mission can be completed with a straight 35% shot and earns three st
 test('a direct pot fails a bank mission, but a same-shot cushion pot counts',()=>{
   const m={...missions[3],layout:[[0,590,330],[4,340,210]]};
   const s=new Session(m);s.shoot(Math.atan2(-120,-250),.35);settle(s);assert.equal(s.outcome,'lost');assert.match(s.reason,/straight pot/);
-  const bank=new Session({...missions[3],layout:[[0,400,300],[4,110,112]]});
+  const bank=new Session({...missions[3],layout:[[0,400,300],[4,105,105]]});
   bank.shoot(0,.2);bank.balls[1].banks=1;bank.balls[1].vx=-10;bank.balls[1].vy=-10;settle(bank);assert.equal(bank.outcome,'won');
 });
 test('wrong called pocket and early eight ball fail the objective',()=>{
@@ -49,6 +49,12 @@ test('scratch respots the cue without overlap and costs a penalty shot',()=>{
 });
 test('timer does not run until first shot, then expires with a clear loss',()=>{
   const s=new Session(missions[6]);s.tick(10);assert.equal(s.timeLeft,75);s.shoot(0,.1);s.tick(76);assert.equal(s.outcome,'lost');assert.match(s.reason,/Time/);
+});
+test('wall-clock countdown stays accurate when rendering and physics are throttled',()=>{
+  const s=new Session(missions[6]);s.shoot(0,.1);
+  for(let i=0;i<50;i++){s.advanceClock(.2);s.tick(1/240,false);}
+  assert.ok(Math.abs(s.timeLeft-65)<.00001);
+  s.advanceClock(65);assert.equal(s.outcome,'lost');
 });
 test('the last allowed shot can still win and moving shots cannot be interrupted',()=>{
   const s=new Session({...missions[0],shots:1});assert.ok(s.shoot(Math.atan2(-120,-250),.35));assert.equal(s.shoot(0,1),false);settle(s);assert.equal(s.outcome,'won');

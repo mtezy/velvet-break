@@ -2,11 +2,13 @@ import { og } from '@opengamehq/sdk';
 import { missions } from './missions.ts';
 import { TABLE, BALL_COLORS } from './physics.ts';
 import { Session } from './session.ts';
-import { render, type Particle } from './render.ts';
+import { type Particle } from './render.ts';
+import { PoolRenderer } from './three-renderer.ts';
 import { ClubAudio } from './audio.ts';
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
-const canvas=$<HTMLCanvasElement>('game'),ctx=canvas.getContext('2d')!,powerInput=$<HTMLInputElement>('power');
+const canvas=$<HTMLCanvasElement>('game'),powerInput=$<HTMLInputElement>('power');
+const renderer=new PoolRenderer(canvas);
 const guide=$<HTMLDialogElement>('guide-dialog'),pauseDialog=$<HTMLDialogElement>('pause-dialog');
 const audio=new ClubAudio();
 interface Record {stars:number;shots:number;}
@@ -75,7 +77,7 @@ function showResult(){
   updateHud();
 }
 function setPause(value:boolean){paused=value;cancelCharge();if(value&&!pauseDialog.open)pauseDialog.showModal();if(!value&&pauseDialog.open)pauseDialog.close();updateHud();}
-function pointerPosition(e:PointerEvent){const bounds=canvas.getBoundingClientRect();return{x:(e.clientX-bounds.left)/bounds.width*1200,y:(e.clientY-bounds.top)/bounds.height*660};}
+function pointerPosition(e:PointerEvent){return renderer.pointer(e.clientX,e.clientY);}
 canvas.addEventListener('pointermove',e=>{if(!session.canShoot||charging)return;const p=pointerPosition(e),cue=session.balls[0];angle=Math.atan2(p.y-cue.y,p.x-cue.x);});
 canvas.addEventListener('pointerdown',e=>{if(e.button!==0||!session.canShoot)return;const p=pointerPosition(e),cue=session.balls[0];if(Math.hypot(p.x-cue.x,p.y-cue.y)>TABLE.radius*2)angle=Math.atan2(p.y-cue.y,p.x-cue.x);canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);pointerId=e.pointerId;startCharge();});
 canvas.addEventListener('pointerup',e=>{if(pointerId===e.pointerId){pointerId=null;finishCharge();if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);}});
@@ -110,20 +112,20 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')finishCharge();});
 window.addEventListener('blur',()=>{cancelCharge();keys.clear();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelCharge();keys.clear();if(session.started&&session.outcome==='playing')setPause(true);}});
-new ResizeObserver(()=>{const width=canvas.clientWidth,dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(width*dpr);canvas.height=Math.round(width*660/1200*dpr);}).observe(canvas);
+new ResizeObserver(()=>renderer.resize()).observe(canvas);
 function frame(now:number){
-  const elapsed=Math.min((now-lastFrame)/1000,.05);lastFrame=now;
+  const realElapsed=Math.max(0,(now-lastFrame)/1000),elapsed=Math.min(realElapsed,.25);lastFrame=now;
   if(!paused&&!hostPaused&&!guide.open&&!pauseDialog.open){
-    if(session.canShoot&&!charging){const speed=keys.has('ShiftLeft')||keys.has('ShiftRight')?.16:.8;if(keys.has('ArrowLeft'))angle-=elapsed*speed;if(keys.has('ArrowRight'))angle+=elapsed*speed;if(keys.has('ArrowUp'))power=Math.min(1,power+elapsed*.3);if(keys.has('ArrowDown'))power=Math.max(.1,power-elapsed*.3);}
+    if(session.canShoot&&!charging){const speed=(keys.has('ShiftLeft')||keys.has('ShiftRight'))?.16:.8;if(keys.has('ArrowLeft'))angle-=elapsed*speed;if(keys.has('ArrowRight'))angle+=elapsed*speed;if(keys.has('ArrowUp'))power=Math.min(1,power+elapsed*.3);if(keys.has('ArrowDown'))power=Math.max(.1,power-elapsed*.3);}
     if(charging){power=Math.min(1,.1+(now-chargeStarted)/1400*.9);powerInput.value=String(Math.round(power*100));}
+    session.advanceClock(realElapsed);
     accumulator+=elapsed;
-    while(accumulator>=fixedStep){const events=session.tick(fixedStep);for(const e of events){if(e.type==='pot'){if(e.ball.id===0)toast('Scratch. Cue ball returns. +1 shot penalty.');else{audio.pot();for(let i=0;i<15;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*140,vy:(Math.random()-.5)*140,life:1,color:BALL_COLORS[e.ball.id]});}}else if(e.type==='collision')audio.hit(e.speed);}accumulator-=fixedStep;}
+    while(accumulator>=fixedStep){const events=session.tick(fixedStep,false);for(const e of events){if(e.type==='pot'){if(e.ball.id===0)toast(practice?'Scratch. Cue ball returns.':'Scratch. Cue ball returns. +1 shot penalty.');else{audio.pot();for(let i=0;i<15;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*140,vy:(Math.random()-.5)*140,life:1,color:BALL_COLORS[e.ball.id]});}}else if(e.type==='collision')audio.hit(e.speed);}accumulator-=fixedStep;}
     for(const b of session.balls){if(Math.hypot(b.vx,b.vy)>40){b.trail.push({x:b.x,y:b.y});if(b.trail.length>9)b.trail.shift();}else b.trail.shift();}
     for(const p of particles){p.x+=p.vx*elapsed;p.y+=p.vy*elapsed;p.life-=elapsed*1.6;}particles=particles.filter(p=>p.life>0);
     if(session.outcome!=='playing')showResult();
   }
-  ctx.setTransform(canvas.width/1200,0,0,canvas.height/660,0,0);
-  render(ctx,{balls:session.balls,angle,power,charge:charging?1:0,aiming:session.canShoot&&!paused&&!hostPaused,targetPocket:!practice&&session.mission.rule==='called'?session.mission.pocket:undefined,particles,time:now});
+  renderer.render({balls:session.balls,angle,power,charge:charging?1:0,aiming:session.canShoot&&!paused&&!hostPaused,targetPocket:!practice&&session.mission.rule==='called'?session.mission.pocket:undefined,particles,time:now});
   updateHud();requestAnimationFrame(frame);
 }
 loadMission(0);requestAnimationFrame(frame);

@@ -2,11 +2,11 @@
 
 A late-night pool club. Twelve missions. One perfect shot.
 
-A complete, single-player browser billiards game with a handcrafted mission campaign, full-rack free play, three-star scoring, local progress, procedural sound and mouse/keyboard controls. All graphics are drawn in Canvas; no external art, fonts, audio downloads, account or server is required.
+A complete, single-player browser billiards game with a handcrafted mission campaign, full-rack free play, three-star scoring, local progress, procedural sound and mouse/keyboard controls. Three.js renders the table and rolling 3D balls with procedural materials, lighting and lightweight contact shadows; a Canvas fallback supports browsers without WebGL. No external art, fonts, audio downloads, account or backend is required.
 
 ## Run
 
-Node.js 24+ is recommended. The stack uses the latest stable versions available when built: TypeScript 7.0.2, Vite 8.3.8 and OpenGame SDK 0.5.1.
+Node.js 24+ is recommended. The stack uses the latest stable versions available when built: TypeScript 7.0.2, Vite 8.3.8, Three.js 0.187.0 and OpenGame SDK 0.5.1.
 
 ```sh
 npm ci
@@ -43,10 +43,9 @@ npm run package:game
 This writes `release/velvet-break-opengame.zip`, with `index.html` at the root. Upload that ZIP at https://opengame.io/deploy. The `opengame.json` project manifest declares the Racing & sports track and the static build directory. For the official CLI:
 
 ```sh
-npm install -g @opengamehq/cli
-opengame check . --build
-opengame login
-opengame deploy .
+npx opengame check . --build
+npx opengame login
+npx opengame deploy .
 ```
 
 The owner must sign in, review the private preview, confirm competition eligibility and submit/publish the entry themselves. Building this project does not submit it to the jam. SDK initialization, ready, host pause and host mute are integrated; the first frame and gameplay do not depend on a platform connection. No platform credentials belong in the game build.
@@ -55,11 +54,11 @@ The owner must sign in, review the private preview, confirm competition eligibil
 
 - Deterministic 240 Hz equal-mass billiard simulation with restitution, rolling friction, pockets, scratch respot and raycast aiming.
 - Twelve challenges: clean pots, multi-ball clears, banks, called pockets, ordered pots, timed clear and eight-ball-last finales.
-- Framework-free TypeScript and Canvas, bundled as a tiny static Vite build. Local sounds use Web Audio synthesis.
+- TypeScript and Three.js with orthographic 3D rendering, pointer raycasting, rolling sphere meshes and a Canvas fallback, bundled as a static Vite build. Local sounds use Web Audio synthesis.
+- Mission clocks use real elapsed time independently of the fixed physics step, including on low-frame-rate devices; pausing freezes both.
 - Responsive layout, keyboard controls, reduced-motion CSS, modal guide and installable app metadata. No service worker, trackers, ads or backend.
 - `npm test` checks momentum, tunneling, rolling stops, bank detection, pocket capture, mission success/failure, scratches, timing and free-play rack integrity.
 
 ## Assets and rights
 
-The game code, Canvas artwork, icon and synthesized sound were created for this project during the November 2026 jam. No third-party art/audio/font assets are used. Runtime dependency `@opengamehq/sdk` is Apache-2.0 licensed; development dependencies retain their own licenses. System fonts are rendered by the player's browser.
-Velvet Break: a pool game with a mission campaign, built for OpenGame
+The game code, procedural artwork, icon and synthesized sound were created for this project. No third-party art/audio/font assets are used. Runtime dependency `@opengamehq/sdk` is Apache-2.0 licensed and `three` is MIT licensed; development dependencies retain their own licenses. System fonts are rendered by the player's browser.
