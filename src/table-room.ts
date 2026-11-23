@@ -28,8 +28,8 @@ export class TableRoom {
     try{localStorage.setItem('velvet-break-table-v1',this.selected.id);}catch{}
     if(notify)this.onSelect?.(this.selected);
   }
-  setView(view:'club'|'overhead'){
-    this.renderer.setView(view);for(const v of ['club','overhead'])element(`view-${v}`).setAttribute('aria-pressed',String(view===v));
+  setView(view:'club'|'overhead'|'custom'){
+    this.renderer.setView(view);for(const v of ['club','overhead','custom'])element(`view-${v}`).setAttribute('aria-pressed',String(view===v));
   }
   setLocked(locked:boolean){for(const button of document.querySelectorAll<HTMLButtonElement>('[data-table]'))button.disabled=locked;}
 }

@@ -9,11 +9,14 @@ import { OnlineGame } from './online.ts';
 import { VS_RULES } from './versus.ts';
 import { ClubAudio } from './audio.ts';
 import { TABLE_DESIGNS } from './tables.ts';
+import { CameraRig } from './camera-rig.ts';
+import { CueLocker } from './cue-locker.ts';
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const canvas=$<HTMLCanvasElement>('game'),powerInput=$<HTMLInputElement>('power');
 const renderer=new PoolRenderer(canvas);
 const room=new TableRoom(renderer);
+const cameraRig=new CameraRig(renderer,room),cueLocker=new CueLocker(renderer);
 let online:OnlineGame|undefined;
 const guide=$<HTMLDialogElement>('guide-dialog'),pauseDialog=$<HTMLDialogElement>('pause-dialog');
 const audio=new ClubAudio();
@@ -27,10 +30,11 @@ const fixedStep=1/240;
 let lastHud='',onlineResultShown=false;
 let titleOpen=true,shotPotCount=0;const titleBalls=practiceLayout();
 const currentBalls=()=>online?.active&&online.match?online.match.balls:session.balls;
-const canShoot=()=>!titleOpen&&(online?.active?online.canShoot:session.canShoot);
+const canShoot=()=>!titleOpen&&!renderer.cueInspection&&(online?.active?online.canShoot:session.canShoot);
 function setTitle(value:boolean){
   if(value&&online?.active){toast('Leave the online room before returning to the title.');return;}
   cancelCharge();keys.clear();titleOpen=value;document.body.classList.toggle('title-open',value);renderer.setTitleMode(value);
+  cameraRig.close();cueLocker.inspect(false);
   $('title-table-name').textContent=room.selected.name;$('title-play').innerHTML=`<span>01</span> ${session.started?'Return to the table':'Enter the guild'} <b>↗</b>`;
   document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;
   if(!value){paused=false;if(pauseDialog.open)pauseDialog.close();canvas.focus({preventScroll:true});}lastHud='';updateHud();
@@ -62,6 +66,7 @@ function renderMissions(){
   $('mission-count').textContent=`${completed} / 12`;$('total-stars').textContent=String(stars);$('campaign-progress').style.width=`${completed/12*100}%`;
 }
 function loadMission(next:number,free=false){
+  cameraRig.close();cueLocker.inspect(false);
   document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;
   if(online?.active)online.leave();
   cancelCharge();index=next;practice=free;session=new Session(missions[next],free);particles=[];outcomeShown=false;accumulator=0;
@@ -80,7 +85,7 @@ function loadMission(next:number,free=false){
 }
 function updateHud(){
   const duel=online?.active?online.match:null;
-  const signature=[titleOpen,online?.active,online?.connected,online?.pending,duel?.turn,duel?.shots,duel?.inShot,duel?.ballInHand,duel?.winner,duel?.potted.length,duel?.groups.join(),session.shots,session.potted.length,session.inShot,session.outcome,Math.ceil(session.timeLeft),paused,hostPaused,Math.round(power*100),practice,index].join('|');
+  const signature=[titleOpen,renderer.cueInspection,online?.active,online?.connected,online?.pending,duel?.turn,duel?.shots,duel?.inShot,duel?.ballInHand,duel?.winner,duel?.potted.length,duel?.groups.join(),session.shots,session.potted.length,session.inShot,session.outcome,Math.ceil(session.timeLeft),paused,hostPaused,Math.round(power*100),practice,index].join('|');
   if(signature===lastHud)return;lastHud=signature;
   $('online-panel').classList.toggle('connected',!!online?.connected);
   if(online?.active){
@@ -110,7 +115,7 @@ function updateHud(){
 }
 function toast(text:string){clearTimeout(floatTimeout);$('floating-message').textContent=text;$('floating-message').classList.add('visible');floatTimeout=window.setTimeout(()=>$('floating-message').classList.remove('visible'),3200);}
 function doShoot(value=power){
-  if(titleOpen||paused||hostPaused||guide.open||pauseDialog.open)return;
+  if(titleOpen||renderer.cueInspection||paused||hostPaused||guide.open||pauseDialog.open)return;
   if(online?.active){if(online.shoot(angle,value)){if(online.isHost)shotEffect(value);updateHud();}return;}
   if(session.shoot(angle,value)){shotEffect(value);og.track('shot_taken',{mission:practice?0:index+1});updateHud();}
 }
@@ -144,10 +149,10 @@ $('restart-button').addEventListener('click',()=>loadMission(index,practice));
 $('missions').addEventListener('click',e=>{const btn=(e.target as HTMLElement).closest<HTMLElement>('[data-mission]');if(btn)loadMission(Number(btn.dataset.mission));});
 $('next-mission').addEventListener('click',()=>{if(online?.active){online.requestRematch();$('result-overlay').classList.add('hidden');return;}loadMission(session.outcome==='won'&&!practice?(index+1)%12:index,practice);});
 $('result-retry').addEventListener('click',()=>loadMission(session.outcome==='won'?index:0,session.outcome==='won'&&practice));
-$('campaign-nav').addEventListener('click',()=>{if(practice||online?.active)loadMission(index);document.body.classList.toggle('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;});
+$('campaign-nav').addEventListener('click',()=>{cameraRig.close();cueLocker.inspect(false);if(practice||online?.active)loadMission(index);document.body.classList.toggle('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;});
 $('practice-nav').addEventListener('click',()=>loadMission(index,true));
-$('online-nav').addEventListener('click',()=>{cancelCharge();paused=false;hostPaused=false;if(pauseDialog.open)pauseDialog.close();document.body.classList.toggle('lobby-expanded');document.body.classList.remove('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;online?.enter();});
-$('vault-button').addEventListener('click',()=>{const vault=document.querySelector<HTMLDetailsElement>('.table-room')!;vault.open=!vault.open;document.body.classList.remove('missions-open','lobby-expanded');});
+$('online-nav').addEventListener('click',()=>{cameraRig.close();cueLocker.inspect(false);cancelCharge();paused=false;hostPaused=false;if(pauseDialog.open)pauseDialog.close();document.body.classList.toggle('lobby-expanded');document.body.classList.remove('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;online?.enter();});
+$('vault-button').addEventListener('click',()=>{const vault=document.querySelector<HTMLDetailsElement>('.table-room')!;vault.open=!vault.open;cameraRig.close();document.body.classList.remove('missions-open','lobby-expanded');});
 $('menu-button').addEventListener('click',()=>setTitle(true));
 $('title-play').addEventListener('click',()=>setTitle(false));
 $('title-online').addEventListener('click',()=>{setTitle(false);$('online-nav').click();});
@@ -171,7 +176,7 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space')startCharge();
   if(e.code==='KeyR'&&!online?.active)loadMission(index,practice);
   if(e.code==='KeyP')setPause(!paused);
-  if(e.code==='Escape'){cancelCharge();document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;}
+  if(e.code==='Escape'){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;}
 });
 window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')finishCharge();});
 window.addEventListener('blur',()=>{cancelCharge();keys.clear();});
