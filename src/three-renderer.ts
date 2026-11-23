@@ -100,10 +100,11 @@ export class PoolRenderer {
     this.resize();
   }
   material(color:string|number,roughness=.7,metalness=0){return new THREE.MeshStandardMaterial({color,roughness,metalness});}
+  private detailedTable(quality=this.quality){return quality==='high'||(quality==='auto'&&!this.software);}
   setTable(design:TableDesign){
     this.design=design;this.dirty=true;
     if(!this.renderer)return;
-    this.scene.remove(this.tableModel);disposeTableModel(this.tableModel);this.tableModel=buildTableModel(design,!this.software);this.scene.add(this.tableModel);
+    this.scene.remove(this.tableModel);disposeTableModel(this.tableModel);this.tableModel=buildTableModel(design,this.detailedTable());this.scene.add(this.tableModel);
   }
   setView(view:'club'|'overhead'|'custom'){
     this.view=view;const portrait=window.innerWidth<=520&&window.innerHeight>window.innerWidth;
@@ -119,7 +120,9 @@ export class PoolRenderer {
     this.dirty=true;
   }
   setQuality(value:'auto'|'high'|'economy'){
+    const rebuildTable=this.detailedTable()!==this.detailedTable(value);
     this.quality=value;this.renderScale=value==='economy'?.6:value==='high'?Math.min(window.devicePixelRatio,1.5):this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer?.setPixelRatio(this.renderScale);this.dirty=true;
+    if(rebuildTable)this.setTable(this.design);
   }
   highlightPocket(event:PhysicsEvent,color:string){
     if(this.effects)this.pocketHighlights?.pot(event,color,performance.now());
