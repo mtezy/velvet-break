@@ -5,6 +5,7 @@ import { render as renderFallback, type RenderState } from './render.ts';
 import { getTableDesign, type TableDesign } from './tables.ts';
 import { buildTableModel, disposeTableModel } from './table-model.ts';
 import { buildClubRoom } from './club-room.ts';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /** The game uses a true 3D table and rolling spheres; a Canvas fallback keeps it playable without WebGL. */
 export class PoolRenderer {
@@ -49,6 +50,7 @@ export class PoolRenderer {
     const envCanvas=document.createElement('canvas');envCanvas.width=256;envCanvas.height=128;const ec=envCanvas.getContext('2d')!;
     ec.fillStyle='#262620';ec.fillRect(0,0,256,128);ec.fillStyle='#fff1ce';ec.fillRect(26,18,115,10);ec.fillRect(180,24,38,6);ec.fillStyle='#bedde5';ec.fillRect(12,40,15,30);ec.fillRect(150,35,16,30);ec.fillStyle='#5f4230';ec.fillRect(0,78,256,50);
     const environment=new THREE.CanvasTexture(envCanvas);environment.mapping=THREE.EquirectangularReflectionMapping;environment.colorSpace=THREE.SRGBColorSpace;this.scene.environment=environment;this.scene.environmentIntensity=.75;
+    if(!this.software){const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.04).texture;this.scene.environmentIntensity=.45;studio.dispose();pmrem.dispose();environment.dispose();}
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
     this.resize();
   }
@@ -56,10 +58,10 @@ export class PoolRenderer {
   setTable(design:TableDesign){
     this.design=design;this.dirty=true;
     if(!this.renderer)return;
-    this.scene.remove(this.tableModel);disposeTableModel(this.tableModel);this.tableModel=buildTableModel(design);this.scene.add(this.tableModel);
+    this.scene.remove(this.tableModel);disposeTableModel(this.tableModel);this.tableModel=buildTableModel(design,!this.software);this.scene.add(this.tableModel);
   }
   setView(view:'club'|'overhead'){
-    this.view=view;const fit=Math.max(1,1.5/Math.max(.45,this.camera.aspect));this.camera.position.copy(view==='club'?new THREE.Vector3(270,820,980).multiplyScalar(Math.max(1,fit*.82)):new THREE.Vector3(0,1450*fit,90));
+    this.view=view;const fit=Math.max(1,1.5/Math.max(.45,this.camera.aspect));this.camera.position.copy(view==='club'?new THREE.Vector3(330,740,1390).multiplyScalar(Math.max(1,fit*.82)):new THREE.Vector3(0,1450*fit,90));
     this.controls?.target.set(0,view==='club'?-80:0,0);this.camera.lookAt(this.controls?.target??new THREE.Vector3());this.controls?.update();this.dirty=true;
   }
   setTitleMode(value:boolean){this.titleMode=value;if(this.controls)this.controls.enabled=!value;if(value){this.camera.position.set(1100,420,1390);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;}

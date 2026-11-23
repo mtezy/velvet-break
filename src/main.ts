@@ -25,7 +25,7 @@ let paused=false,hostPaused=false,lastFrame=performance.now(),accumulator=0,outc
 let pointerId:number|null=null,shotAngle=angle,keys=new Set<string>();
 const fixedStep=1/240;
 let lastHud='',onlineResultShown=false;
-let titleOpen=true;const titleBalls=practiceLayout();
+let titleOpen=true,shotPotCount=0;const titleBalls=practiceLayout();
 const currentBalls=()=>online?.active&&online.match?online.match.balls:session.balls;
 const canShoot=()=>!titleOpen&&(online?.active?online.canShoot:session.canShoot);
 function setTitle(value:boolean){
@@ -36,6 +36,7 @@ function setTitle(value:boolean){
   if(!value){paused=false;if(pauseDialog.open)pauseDialog.close();canvas.focus({preventScroll:true});}lastHud='';updateHud();
 }
 function shotEffect(value:number){
+  shotPotCount=0;
   audio.shot(value);const cue=currentBalls()[0];renderer.pulse(cue.x,cue.y,room.selected.trim,35+value*45,.45);
   if(renderer.effects){const card=document.querySelector('.table-card')!;card.classList.remove('portal-flash');requestAnimationFrame(()=>card.classList.add('portal-flash'));}
 }
@@ -43,7 +44,7 @@ function handleEvents(events:import('./physics.ts').PhysicsEvent[]){
   for(const e of events){
     if(e.type==='pot'){
       if(e.ball.id===0)toast(online?.active?'Scratch. Opponent gets ball in hand.':practice?'Scratch. Cue ball returns.':'Scratch. Cue ball returns. +1 shot penalty.');
-      else{audio.pot();renderer.pulse(e.ball.x,e.ball.y,room.selected.trim,85,.85);if(renderer.effects)for(let i=0;i<22;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*180,vy:(Math.random()-.5)*180,life:1,color:i%3?BALL_COLORS[e.ball.id]:room.selected.trim});}
+      else{audio.pot();shotPotCount++;if(e.ball.banks>0)toast('Bank shot! Beautifully played.');else if(shotPotCount===2)toast('Double pot! Precision in motion.');renderer.pulse(e.ball.x,e.ball.y,room.selected.trim,85,.85);if(renderer.effects)for(let i=0;i<22;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*180,vy:(Math.random()-.5)*180,life:1,color:i%3?BALL_COLORS[e.ball.id]:room.selected.trim});}
     }else if(e.type==='collision'||e.type==='rail'){
       audio.hit(e.speed);if(e.speed>110&&renderer.effects){renderer.pulse(e.ball.x,e.ball.y,e.type==='rail'?room.selected.trim:'#e9f6e9',e.type==='rail'?26:18,.28);for(let i=0;i<4;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*80,vy:(Math.random()-.5)*80,life:.55,color:room.selected.trim});}
     }

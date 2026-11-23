@@ -72,6 +72,7 @@ export function buildClubRoom(){
   for(const x of [-330,0,330]){
     cylinder(40,105,75,x,575,0,velvet,24);cylinder(107,107,6,x,535,0,brass,24);cylinder(98,98,2,x,531,0,warm,24);cylinder(15,15,35,x,631,0,brass);
   }
+  const haze=mesh(new THREE.ConeGeometry(650,515,32,1,true),new THREE.MeshBasicMaterial({color:'#e5c485',transparent:true,opacity:.019,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}),0,270,0);haze.name='warm-lamp-haze';
   const canopy=new THREE.Group();canopy.name='lamp-canopy';
   for(const child of room.children.slice(canopyStart))canopy.add(child);
   batchStaticMeshes(room);batchStaticMeshes(canopy);room.add(canopy);
