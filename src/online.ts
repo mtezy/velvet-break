@@ -4,6 +4,9 @@ import { validSpin, type Spin, type PhysicsEvent } from './physics.ts';
 import { getTableDesign } from './tables.ts';
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const cleanName=(name:unknown)=>typeof name==='string'?name.trim().slice(0,20)||'Rune wanderer':'Rune wanderer';
+const protocol=2;
+const roomId=(code:string)=>`velvet-runes-v${protocol}-${code}`;
+type RuleAction={type:'call-eight';pocket:number}|{type:'push-out'}|{type:'push-choice';passBack:boolean};
 interface OnlineHooks {change:()=>void;table:(id:string,locked:boolean)=>void;tableId:()=>string;events:(events:PhysicsEvent[])=>void;shot:(power:number)=>void;exit:()=>void;}
 
 /** Invite-only WebRTC. The host owns physics, rules and turn validation. */
@@ -25,6 +28,7 @@ export class OnlineGame {
   }
   get canShoot(){return this.active&&this.connected&&!this.pending&&this.match?.turn===this.player&&!!this.match?.canShoot;}
   get canPlace(){return this.active&&this.connected&&!this.pending&&this.match?.turn===this.player&&!!this.match?.ballInHand&&!this.match.inShot;}
+  get canChooseRule(){return this.active&&this.connected&&!this.pending&&this.match?.turn===this.player&&this.match.winner===null&&!this.match.inShot;}
   get mode(){return el<HTMLSelectElement>('online-rules').value==='9-ball'?'9-ball':'8-ball';}
   describeRules(){el('online-rule-description').textContent=VS_RULES[this.mode];}
   enter(){this.active=true;el('online-panel').classList.remove('hidden');this.hooks.change();}
@@ -46,10 +50,10 @@ export class OnlineGame {
   async create(){
     const bytes=crypto.getRandomValues(new Uint8Array(8)),alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';this.code=Array.from(bytes,b=>alphabet[b%alphabet.length]).join('');
     const code=this.code;this.isHost=true;this.player=0;this.names=[cleanName(el<HTMLInputElement>('online-name').value),'Challenger'];
-    const setup=await this.makePeer(`velvet-runes-v1-${code}`);if(!setup)return;const {peer,generation}=setup;
+    const setup=await this.makePeer(roomId(code));if(!setup)return;const {peer,generation}=setup;
     peer.on('open',()=>{if(generation!==this.generation)return;clearTimeout(this.timer);this.code=code;el('room-code').textContent=code;el('room-invite').classList.remove('hidden');this.status(`Room ready · ${this.mode}. Share the invite code. Waiting for one opponent.`);});
     peer.on('connection',connection=>{
-      if(generation!==this.generation||this.connection){connection.on('open',()=>{connection.send({v:1,type:'full'});connection.close();});return;}
+      if(generation!==this.generation||this.connection){connection.on('open',()=>{connection.send({v:protocol,type:'full'});connection.close();});return;}
       this.attach(connection,generation);
     });
   }
@@ -57,7 +61,7 @@ export class OnlineGame {
     const code=el<HTMLInputElement>('online-code').value.trim().toUpperCase();if(!/^[A-Z2-9]{8}$/.test(code)){this.status('Enter the 8-character room code from your friend.');return;}
     this.isHost=false;this.player=1;this.names=['Host',cleanName(el<HTMLInputElement>('online-name').value)];
     const setup=await this.makePeer();if(!setup)return;const {peer,generation}=setup;this.code=code;
-    peer.on('open',()=>{if(generation!==this.generation)return;clearTimeout(this.timer);this.status('Finding your opponent…');this.attach(peer.connect(`velvet-runes-v1-${code}`,{reliable:true,serialization:'json'}),generation);});
+    peer.on('open',()=>{if(generation!==this.generation)return;clearTimeout(this.timer);this.status('Finding your opponent…');this.attach(peer.connect(roomId(code),{reliable:true,serialization:'json'}),generation);});
   }
   attach(connection:DataConnection,generation:number){
     this.connection=connection;
@@ -67,9 +71,9 @@ export class OnlineGame {
     connection.on('close',()=>{if(generation!==this.generation)return;this.connected=false;this.pending=false;this.status('Opponent disconnected. The match is frozen. Leave online to start another room.');this.busy(false);this.hooks.change();});
     connection.on('error',()=>{if(generation===this.generation)this.fail('The peer connection failed. Leave and create or join again.');});
   }
-  send(data:Record<string,unknown>){if(this.connection?.open)this.connection.send({v:1,...data});}
+  send(data:Record<string,unknown>){if(this.connection?.open)this.connection.send({v:protocol,...data});}
   receive(value:unknown){
-    if(!value||typeof value!=='object')return;const data=value as Record<string,unknown>;if(data.v!==1)return;
+    if(!value||typeof value!=='object')return;const data=value as Record<string,unknown>;if(data.v!==protocol)return;
     if(data.type==='full'){this.fail('That room already has two players. Ask for a new invite.');return;}
     if(this.isHost){
       if(data.type==='hello'&&!this.connected){this.names[1]=cleanName(data.name);this.connected=true;clearTimeout(this.timer);this.match=new VersusMatch(this.mode);this.hostReady=this.guestReady=false;this.sendState();this.refresh();return;}
@@ -78,6 +82,10 @@ export class OnlineGame {
         if(this.match.shoot(1,data.angle,data.power,data.spin)){this.hooks.shot(data.power);this.send({type:'shot',power:data.power,spin:data.spin??{x:0,y:0}});}this.sendState();
       }
       if(data.type==='place'&&typeof data.x==='number'&&typeof data.y==='number'){this.match.placeCue(1,data.x,data.y);this.sendState();}
+      if(data.type==='call-eight'||data.type==='push-out'||data.type==='push-choice'){
+        if(data.sequence===this.match.shots)this.applyRule(1,data);
+        this.sendState();
+      }
       if(data.type==='rematch'&&this.match.winner!==null){this.guestReady=true;this.tryRematch();}
     }else{
       if(data.type==='state'&&(data.mode==='8-ball'||data.mode==='9-ball')){
@@ -114,6 +122,23 @@ export class OnlineGame {
     return true;
   }
   place(x:number,y:number){if(!this.canPlace||!this.match)return false;if(this.isHost){const placed=this.match.placeCue(0,x,y);if(placed)this.sendState();return placed;}this.pending=true;this.send({type:'place',x,y});return true;}
+  private applyRule(player:Player,action:Record<string,unknown>){
+    if(!this.match)return false;
+    if(action.type==='call-eight')return this.match.callEightPocket(player,action.pocket);
+    if(action.type==='push-out')return this.match.declarePushOut(player);
+    if(action.type==='push-choice')return this.match.choosePushOut(player,action.passBack);
+    return false;
+  }
+  rule(action:RuleAction){
+    if(!this.canChooseRule||!this.match)return false;
+    if(this.isHost){
+      if(!this.applyRule(0,action))return false;
+      this.sendState();
+    }else{
+      this.pending=true;this.send({...action,sequence:this.match.shots});
+    }
+    return true;
+  }
   tableChanged(){if(this.isHost&&this.connected)this.sendState();}
   tryRematch(){if(this.hostReady&&this.guestReady&&this.match){this.match=new VersusMatch(this.match.mode);this.hostReady=this.guestReady=false;this.sendState();}else this.status('Rematch requested. Waiting for the other player.');}
   requestRematch(){if(!this.connected||!this.match||this.match.winner===null)return;if(this.isHost){this.hostReady=true;this.tryRematch();}else this.send({type:'rematch'});el<HTMLButtonElement>('online-rematch').disabled=true;this.status('Rematch requested. Waiting for your opponent.');}

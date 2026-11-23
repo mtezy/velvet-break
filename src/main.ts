@@ -1,6 +1,6 @@
 import { og } from '@opengamehq/sdk';
 import { missions, practiceLayout } from './missions.ts';
-import { TABLE, BALL_COLORS, clampSpin, type Spin } from './physics.ts';
+import { TABLE, POCKETS, BALL_COLORS, clampSpin, type Spin } from './physics.ts';
 import { Session } from './session.ts';
 import { type Particle } from './render.ts';
 import { PoolRenderer } from './three-renderer.ts';
@@ -45,13 +45,16 @@ spinPicker.addEventListener('pointermove',e=>{if(spinPicker.hasPointerCapture(e.
 spinPicker.addEventListener('pointerup',e=>{if(spinPicker.hasPointerCapture(e.pointerId))spinPicker.releasePointerCapture(e.pointerId);});
 $('spin-reset').addEventListener('click',()=>setSpin({x:0,y:0}));
 const currentBalls=()=>offline?offline.match.balls:online?.active&&online.match?online.match.balls:session.balls;
+const versusMatch=()=>offline?.match??(online?.active?online.match:null);
+const canChooseRule=()=>!titleOpen&&!paused&&!hostPaused&&!renderer.cueInspection&&(offline?offline.match.turn===0:!!online?.canChooseRule);
 const canShoot=()=>!titleOpen&&!renderer.cueInspection&&(offline?offline.canShoot:online?.active?online.canShoot:session.canShoot);
 function startOffline(){
   if(online?.active)online.leave();cancelCharge();paused=false;hostPaused=false;
   setTitle(false);cameraRig.close();cueLocker.inspect(false);
   if(pauseDialog.open)pauseDialog.close();cpuDialog.close();
   offline=new OfflineGame($<HTMLSelectElement>('cpu-rules').value==='9-ball'?'9-ball':'8-ball',$<HTMLSelectElement>('cpu-difficulty').value as CpuDifficulty,seededRandom(Date.now()),shotEffect);
-  cpuResultShown=false;particles=[];accumulator=0;angle=0;power=.65;powerInput.value='65';setSpin({x:0,y:0});
+  const cue=offline.match.balls[0],apex=offline.match.balls.find(b=>b.id===1)!;
+  cpuResultShown=false;particles=[];accumulator=0;angle=Math.atan2(apex.y-cue.y-TABLE.radius*.4,apex.x-cue.x);power=.9;powerInput.value='90';setSpin({x:0,y:0});
   $('result-overlay').classList.add('hidden');lastHud='';updateHud();
 }
 function restartCurrent(){if(offline)startOffline();else loadMission(index,practice);}
@@ -71,7 +74,7 @@ function shotEffect(value:number){
 function handleEvents(events:import('./physics.ts').PhysicsEvent[]){
   for(const e of events){
     if(e.type==='pot'){
-      if(e.ball.id===0)toast(online?.active||offline?'Scratch. Opponent gets ball in hand.':practice?'Scratch. Cue ball returns.':'Scratch. Cue ball returns. +1 shot penalty.');
+      if(e.ball.id===0)toast(versusMatch()?'Scratch.':practice?'Scratch. Cue ball returns.':'Scratch. Cue ball returns. +1 shot penalty.');
       else{audio.pot();shotPotCount++;if(e.ball.banks>0)toast('Bank shot! Beautifully played.');else if(shotPotCount===2)toast('Double pot! Precision in motion.');renderer.pulse(e.ball.x,e.ball.y,room.selected.trim,85,.85);if(renderer.effects)for(let i=0;i<22;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*180,vy:(Math.random()-.5)*180,life:1,color:i%3?BALL_COLORS[e.ball.id]:room.selected.trim});}
     }else if(e.type==='collision'||e.type==='rail'){
       audio.hit(e.speed);if(e.speed>110&&renderer.effects){renderer.pulse(e.ball.x,e.ball.y,e.type==='rail'?room.selected.trim:'#e9f6e9',e.type==='rail'?26:18,.28);for(let i=0;i<4;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*80,vy:(Math.random()-.5)*80,life:.55,color:room.selected.trim});}
@@ -109,9 +112,14 @@ function loadMission(next:number,free=false){
   renderMissions();updateHud();
 }
 function updateHud(){
-  const duel=offline?.match??(online?.active?online.match:null);
-  const signature=[titleOpen,renderer.cueInspection,offline?.phase,offline?.difficulty,duel?.reason,online?.active,online?.connected,online?.pending,duel?.turn,duel?.shots,duel?.inShot,duel?.ballInHand,duel?.winner,duel?.potted.length,duel?.groups.join(),session.shots,session.potted.length,session.inShot,session.outcome,Math.ceil(session.timeLeft),paused,hostPaused,Math.round(power*100),practice,index].join('|');
+  const duel=versusMatch();
+  const signature=[titleOpen,renderer.cueInspection,offline?.phase,offline?.difficulty,duel?.reason,duel?.calledPocket,duel?.pushOut,duel?.fouls.join(),duel?.kitchen,online?.active,online?.connected,online?.pending,duel?.turn,duel?.shots,duel?.inShot,duel?.ballInHand,duel?.winner,duel?.potted.length,duel?.groups.join(),session.shots,session.potted.length,session.inShot,session.outcome,Math.ceil(session.timeLeft),paused,hostPaused,Math.round(power*100),practice,index].join('|');
   if(signature===lastHud)return;lastHud=signature;
+  const ruleTurn=!!duel&&canChooseRule()&&!duel.inShot&&duel.winner===null;
+  $('push-out').hidden=!ruleTurn||duel.pushOut!=='available';
+  $('push-accept').hidden=$('push-pass').hidden=!ruleTurn||duel.pushOut!=='decision';
+  const prompt=!duel||duel.inShot||duel.winner!==null?'':duel.ballInHand&&duel.kitchen?'Ball in hand: place left of the head string (kitchen).':ruleTurn&&duel.pushOut==='decision'?'Push-out: shoot from here or pass back.':ruleTurn&&duel.pushOut==='available'?'Your shot: play normally or push out.':ruleTurn&&duel.pushOut==='declared'?'Push-out declared. Take your shot.':ruleTurn&&!duel.ballInHand&&duel.needsEightCall?(duel.calledPocket===null?'Call a pocket for the 8: click or tap a pocket.':`Called: ${POCKETS[duel.calledPocket].name}. Aim and shoot the 8.`):'';
+  const warning=duel&&duel.fouls[duel.turn]===2&&ruleTurn?' Warning: your next foul loses the rack.':'';
   $('online-panel').classList.toggle('connected',!!online?.connected);
   spinPicker.disabled=!!offline&&!offline.canShoot;$<HTMLButtonElement>('spin-reset').disabled=spinPicker.disabled;
   if(offline){
@@ -119,11 +127,12 @@ function updateHud(){
     document.querySelector('.hud-stats small')!.textContent='TURN';
     $('mission-number').textContent='VS';$('mission-title').textContent=`${match.mode} · vs CPU`;$('mission-chapter').textContent='OFFLINE / THE CLUB CHALLENGE';$('difficulty').textContent=offline.difficulty.toUpperCase();
     $('objective').textContent=match.winner!==null?(match.winner===0?'You win!':'CPU wins!'):match.ballInHand?`${who}: ball in hand · click clear felt`:`${who}${match.turn===0?'r turn':` · ${match.inShot?'shooting':offline.phase==='aiming'?'aiming':'thinking…'}`}`;
+    if(prompt)$('objective').textContent=prompt;
     $('shots-left').textContent=match.turn===0?'YOU':'CPU';$('shots-left').style.color='';
     $('secondary-label').textContent=match.mode==='9-ball'?'TARGET':match.groups[0]?`YOU ${match.groups[0]} / CPU ${match.groups[1]}`:'OPEN TABLE';
     $('potted-count').textContent=match.mode==='9-ball'?String(match.lowest===Infinity?'—':match.lowest):match.groups[0]?`${match.groupRemaining(0)} / CPU ${match.groupRemaining(1)}`:String(match.potted.length);
     const blocked=!offline.canShoot||paused||hostPaused;$<HTMLButtonElement>('shoot-button').disabled=blocked;powerInput.disabled=blocked;$<HTMLButtonElement>('restart-button').disabled=false;
-    $('power-value').textContent=`${Math.round(power*100)}%`;$('table-status').textContent=paused||hostPaused?'PAUSED':match.reason;
+    $('power-value').textContent=`${Math.round(power*100)}%`;$('table-status').textContent=paused||hostPaused?'PAUSED':match.reason+warning;
     $('mission-tip').textContent=`${match.reason} ${VS_RULES[match.mode]}`;$('best-score').innerHTML='OFFLINE<br><b>CPU</b>';
     for(const id of ['campaign-nav','practice-nav','online-nav'])$(id).classList.remove('active');$('cpu-nav').classList.add('active');
     if(match.winner!==null&&!cpuResultShown){
@@ -136,11 +145,12 @@ function updateHud(){
     document.querySelector('.hud-stats small')!.textContent='TURN';
     $('mission-number').textContent='ᛟ';$('mission-title').textContent=duel?`${duel.mode} duel`:'Online duel';$('mission-chapter').textContent='THE DUEL PORTAL / LIVE MULTIPLAYER';$('difficulty').textContent='ONLINE VS';
     $('objective').textContent=duel?duel.winner!==null?`${online.names[duel.winner]} wins!`:duel.ballInHand?`${online.names[duel.turn]}: place the cue on clear felt.`:`${online.names[duel.turn]}'s turn${duel.inShot?' · balls in motion':''}`:'Create a room or join a friend to play.';
+    if(prompt)$('objective').textContent=prompt;
     $('shots-left').textContent=duel?(duel.turn===online.player?'YOU':'RIVAL'):'—';$('shots-left').style.color='';
     $('secondary-label').textContent=duel?.mode==='9-ball'?'NEXT BALL':duel?.groups[online.player]?.toUpperCase()??'POTTED';
     $('potted-count').textContent=duel?.mode==='9-ball'?(Number.isFinite(duel.lowest)?String(duel.lowest):'—'):duel?.groups[online.player]?String(duel.groupRemaining(online.player)):String(duel?.potted.length??0);
     $<HTMLButtonElement>('shoot-button').disabled=!online.canShoot;powerInput.disabled=!online.canShoot;$<HTMLButtonElement>('restart-button').disabled=true;
-    $('power-value').textContent=`${Math.round(power*100)}%`;$('table-status').textContent=!online.connected?'WAITING AT THE PORTAL':duel?.winner!==null?'DUEL COMPLETE':duel?.inShot?'THE RUNES ARE IN MOTION':duel?.ballInHand?'CLICK FELT TO PLACE THE CUE':online.canShoot?'YOUR TURN. CLAIM YOUR LEGEND.':'YOUR RIVAL IS AIMING.';
+    $('power-value').textContent=`${Math.round(power*100)}%`;$('table-status').textContent=online.connected&&duel?duel.reason+warning:'WAITING AT THE PORTAL';
     $('mission-tip').textContent=VS_RULES[duel?.mode??online.mode];$('best-score').innerHTML='ONLINE<br><b>ᛟ</b>';
     $('online-nav').classList.add('active');$('campaign-nav').classList.remove('active');$('practice-nav').classList.remove('active');
     if(!duel||duel.winner===null){$('result-overlay').classList.add('hidden');onlineResultShown=false;}
@@ -184,12 +194,40 @@ function showResult(){
 function setPause(value:boolean){if(titleOpen)return;if(online?.active){if(value)toast('Online duels cannot be paused. Keep the host tab visible.');return;}paused=value;cancelCharge();if(value&&!pauseDialog.open)pauseDialog.showModal();if(!value&&pauseDialog.open)pauseDialog.close();updateHud();}
 function pointerPosition(e:PointerEvent){return renderer.pointer(e.clientX,e.clientY);}
 canvas.addEventListener('pointermove',e=>{if(!canShoot()||charging||e.buttons===2)return;const p=pointerPosition(e),cue=currentBalls()[0];angle=Math.atan2(p.y-cue.y,p.x-cue.x);});
-canvas.addEventListener('pointerdown',e=>{if(e.button!==0||paused||hostPaused||cpuDialog.open)return;const p=pointerPosition(e);if(offline?.canPlace){if(!offline.match.placeCue(0,p.x,p.y))toast('Place the cue on clear felt, away from balls and pockets.');updateHud();return;}if(online?.canPlace){if(!online.place(p.x,p.y))toast('Place the cue on clear felt, away from balls and pockets.');updateHud();return;}if(!canShoot())return;const cue=currentBalls()[0];if(Math.hypot(p.x-cue.x,p.y-cue.y)>TABLE.radius*2)angle=Math.atan2(p.y-cue.y,p.x-cue.x);canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);pointerId=e.pointerId;startCharge();});
+canvas.addEventListener('pointerdown',e=>{
+  if(e.button!==0||paused||hostPaused||cpuDialog.open)return;
+  const p=pointerPosition(e),match=versusMatch();
+  if(offline?.canPlace||online?.canPlace){
+    if(!(offline?offline.match.placeCue(0,p.x,p.y):online?.place(p.x,p.y)))toast(match?.kitchen?'Place the cue on clear felt behind the head string.':'Place the cue on clear felt, away from balls and pockets.');
+    updateHud();return;
+  }
+  if(match?.needsEightCall&&match.canPrepareShot&&canChooseRule()){
+    const pocket=POCKETS.findIndex(hole=>Math.hypot(hole.x-p.x,hole.y-p.y)<TABLE.pocketRadius+24);
+    if(pocket!==-1){
+      if(offline)match.callEightPocket(0,pocket);else online?.rule({type:'call-eight',pocket});
+      updateHud();return;
+    }
+  }
+  if(!canShoot())return;
+  const cue=currentBalls()[0];if(Math.hypot(p.x-cue.x,p.y-cue.y)>TABLE.radius*2)angle=Math.atan2(p.y-cue.y,p.x-cue.x);
+  canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);pointerId=e.pointerId;startCharge();
+});
 canvas.addEventListener('pointerup',e=>{if(pointerId===e.pointerId){pointerId=null;finishCharge();if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);}});
 canvas.addEventListener('pointercancel',cancelCharge);
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 powerInput.addEventListener('input',()=>{power=Number(powerInput.value)/100;updateHud();});
 $('shoot-button').addEventListener('click',()=>doShoot());
+$('push-out').addEventListener('click',()=>{
+  if(!canChooseRule())return;
+  cancelCharge();
+  if(offline)offline.match.declarePushOut(0);else online?.rule({type:'push-out'});
+  updateHud();
+});
+for(const [id,passBack] of [['push-accept',false],['push-pass',true]] as const)$(id).addEventListener('click',()=>{
+  if(!canChooseRule())return;
+  if(offline)offline.match.choosePushOut(0,passBack);else online?.rule({type:'push-choice',passBack});
+  updateHud();
+});
 $('cpu-nav').addEventListener('click',()=>{cancelCharge();cpuDialog.showModal();});
 $('cpu-close').addEventListener('click',()=>cpuDialog.close());
 $('cpu-start').addEventListener('click',startOffline);
@@ -251,7 +289,9 @@ function frame(now:number){
     }
   }
   const cpuAiming=!titleOpen&&!renderer.cueInspection&&!!offline&&offline.phase==='aiming'&&!offline.match.inShot&&offline.match.turn===1;
-  renderer.render({balls:titleOpen?titleBalls:currentBalls(),angle:cpuAiming?offline!.angle:angle,power:cpuAiming?offline!.shot!.power:power,spin:cpuAiming?offline!.shot!.spin:spin,charge:charging?1:0,aiming:(canShoot()||cpuAiming)&&!paused&&!hostPaused,targetPocket:!titleOpen&&!offline&&!online?.active&&!practice&&session.mission.rule==='called'?session.mission.pocket:undefined,particles:renderer.effects&&!titleOpen?particles:[],time:now});
+  const match=versusMatch();
+  const targetPocket=titleOpen?undefined:match?(cpuAiming?offline?.shot?.pocket:match.calledPocket??undefined):!online?.active&&!practice&&session.mission.rule==='called'?session.mission.pocket:undefined;
+  renderer.render({balls:titleOpen?titleBalls:currentBalls(),angle:cpuAiming?offline!.angle:angle,power:cpuAiming?offline!.shot!.power:power,spin:cpuAiming?offline!.shot!.spin:spin,charge:charging?1:0,aiming:(canShoot()||cpuAiming)&&!paused&&!hostPaused,targetPocket,particles:renderer.effects&&!titleOpen?particles:[],time:now});
   updateHud();requestAnimationFrame(frame);
 }
 online=new OnlineGame({change:()=>{lastHud='';updateHud();},table:(id,locked)=>{if(room.selected.id!==id)room.select(id);room.setLocked(locked);},tableId:()=>room.selected.id,events:handleEvents,shot:shotEffect,exit:()=>loadMission(index)});
