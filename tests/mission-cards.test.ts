@@ -16,7 +16,7 @@ test('cards show earned stars, best shots and the next unplayed mission',()=>{
   const html=missionCardsHtml(missions,records,null);
   assert.match(html,/Best 1 · par 1/);
   assert.match(html,/mission-card next-up" data-mission="2"/);
-  assert.match(html,/✦ 5 \/ 9/);
+  assert.match(html,/<\/svg> 5 \/ 9/);
   assert.equal(missionStars(records[1]).match(/class="earned"/g)?.length,2);
   assert.equal(missionStars(null).match(/class="earned"/g),null);
 });

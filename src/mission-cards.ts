@@ -1,4 +1,5 @@
 import { BALL_COLORS, POCKETS, TABLE } from './physics.ts';
+import { runeIcon } from './rune-icons.ts';
 import type { Mission } from './missions.ts';
 import type { MissionRecord } from './campaign-progress.ts';
 
@@ -9,7 +10,7 @@ export function missionRule(m:Mission){return m.time?`${m.time}s clock`:RULES[m.
 
 export function missionStars(record:MissionRecord|null){
   const earned=record?.stars??0;
-  return Array.from({length:3},(_,i)=>`<i${i<earned?' class="earned"':''}>✦</i>`).join('');
+  return Array.from({length:3},(_,i)=>i<earned?`<i class="earned">${runeIcon('award')}</i>`:`<i>${runeIcon('award-empty')}</i>`).join('');
 }
 
 export function missionMap(m:Mission){
@@ -29,8 +30,8 @@ export function missionCardsHtml(list:readonly Mission[],records:readonly (Missi
       const record=records[i],current=i===selected,next=i===nextUp;
       const status=record?`${record.stars} of 3 stars, best ${record.shots} ${record.shots===1?'shot':'shots'}, par ${m.par}`:`not played yet, par ${m.par}${next?', next up':''}`;
       const best=record?`Best ${record.shots} · par ${m.par}`:next?'Next up':`Par ${m.par}`;
-      return `<button class="mission-card${current?' selected':''}${record?' cleared':''}${next?' next-up':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}, ${m.difficulty}, ${missionRule(m)}, ${status}"${current?' aria-current="true"':''}><span class="card-map">${missionMap(m)}${record?'<span class="card-seal" aria-hidden="true">✓</span>':''}</span><span class="card-body"><span class="card-title"><span class="card-number">${String(i+1).padStart(2,'0')}</span>${m.title}</span><span class="card-rule">${m.difficulty} · ${missionRule(m)}</span><span class="card-foot"><span class="card-stars" aria-hidden="true">${missionStars(record)}</span><span class="card-best">${best}</span></span></span></button>`;
+      return `<button class="mission-card${current?' selected':''}${record?' cleared':''}${next?' next-up':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}, ${m.difficulty}, ${missionRule(m)}, ${status}"${current?' aria-current="true"':''}><span class="card-map">${missionMap(m)}${record?`<span class="card-seal" aria-hidden="true">${runeIcon('verified')}</span>`:''}</span><span class="card-body"><span class="card-title"><span class="card-number">${String(i+1).padStart(2,'0')}</span>${m.title}</span><span class="card-rule">${m.difficulty} · ${missionRule(m)}</span><span class="card-foot"><span class="card-stars" aria-hidden="true">${missionStars(record)}</span><span class="card-best">${best}</span></span></span></button>`;
     }).join('');
-    return `<section class="map-chapter" aria-label="Chapter ${act}: ${entries[0].m.chapter}, ${stars} of ${max} stars"><div class="map-chapter-head"><p class="act-title">0${act} / ${entries[0].m.chapter.toUpperCase()}</p><span class="map-chapter-stars">✦ ${stars} / ${max}</span></div><div class="map-chapter-bar" aria-hidden="true"><i style="width:${stars/max*100}%"></i></div><div class="map-cards">${cards}</div></section>`;
+    return `<section class="map-chapter" aria-label="Chapter ${act}: ${entries[0].m.chapter}, ${stars} of ${max} stars"><div class="map-chapter-head"><p class="act-title">0${act} / ${entries[0].m.chapter.toUpperCase()}</p><span class="map-chapter-stars">${runeIcon('award')} ${stars} / ${max}</span></div><div class="map-chapter-bar" aria-hidden="true"><i style="width:${stars/max*100}%"></i></div><div class="map-cards">${cards}</div></section>`;
   }).join('');
 }
