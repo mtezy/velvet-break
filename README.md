@@ -103,6 +103,8 @@ npx opengame deploy .
 
 The owner must sign in, review the private preview, confirm competition eligibility and submit/publish the entry themselves. Building this project does not submit it to the jam. SDK initialization, ready, host pause and host mute are integrated; the first frame and solo gameplay do not depend on a platform connection. OpenGame sandbox/network compatibility for PeerJS must be checked in its private preview before publication; ordinary browser testing does not prove platform approval. No platform credentials belong in the game build.
 
+[Velvet Break cover artwork](artwork/opengame-cover.jpg) is a 1600 × 900 render of the Heritage table for use outside the game. [OpenGame generates the hosted cover and share image after approval](https://docs.opengame.io/guides/updating#your-games-cover); it does not accept a cover image in the project manifest.
+
 ## Implementation
 
 - Deterministic 240 Hz equal-mass billiard simulation with restitution, rolling friction, pockets, scratch respot and raycast aiming.
