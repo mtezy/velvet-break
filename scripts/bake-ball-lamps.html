@@ -27,8 +27,7 @@ window.bakeBallLamps=async()=>{
     }
   }
   renderer.setRenderTarget(null);target.dispose();pmrem.dispose();renderer.dispose();
-  const stream=new Blob(levels).stream().pipeThrough(new CompressionStream('gzip'));
-  return new Response(stream).blob();
+  return new Blob(levels);
 };
 
 document.querySelector('#bake').onclick=async()=>{
