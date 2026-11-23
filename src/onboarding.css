@@ -1,0 +1,11 @@
+#onboarding-dialog{width:min(90vw,480px);padding:clamp(20px,5vw,36px);background:linear-gradient(145deg,#172b32,#0e1c24);border-color:#8a744d;border-radius:8px;box-shadow:0 24px 90px #0009;max-height:90dvh}
+#onboarding-dialog::backdrop{background:#071116b8}
+.onboarding-progress{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:14px 0 28px}
+.onboarding-progress span{height:3px;border-radius:2px;background:#43585c}
+.onboarding-progress .reached{background:var(--rune-gold)}
+.onboarding-count{color:var(--rune-gold);font-size:10px;letter-spacing:1.5px}
+#onboarding-dialog h2{margin:8px 0 12px}
+.onboarding-detail{color:var(--text-muted);line-height:1.6;min-height:5em}
+.onboarding-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:24px}
+#onboarding-dialog .text-button{font-size:12px;padding:12px}
+#onboarding-dialog .primary-button{width:auto;min-width:96px;margin:0 0 0 auto;gap:14px}
