@@ -17,6 +17,7 @@ import { setupOnboarding } from './onboarding.ts';
 import { CAMPAIGN_STORAGE_KEY, bestMissionRecord, readCampaignProgress, type MissionRecord } from './campaign-progress.ts';
 import { DailyLeaderboard, dailyBoardKey, dailyDate, dailyDay, dailyMission, dailyScore } from './daily.ts';
 import { ShotRecorder, type ReplayClip } from './shot-replay.ts';
+import { runeIcon, runeStars } from './rune-icons.ts';
 import manifest from '../opengame.json';
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
@@ -93,7 +94,7 @@ function setTitle(value:boolean){
   renderer.clearHighlights();
   cancelCharge();keys.clear();titleOpen=value;document.body.classList.toggle('title-open',value);renderer.setTitleMode(value);
   cameraRig.close();cueLocker.inspect(false);
-  $('title-table-name').textContent=room.selected.name;$('title-play').innerHTML=`<span>01</span> ${session.started?'Return to the table':'Enter the guild'} <b>↗</b>`;
+  $('title-table-name').textContent=room.selected.name;$('title-play').innerHTML=`<span>01</span> ${session.started?'Return to the table':'Enter the guild'} <b>${runeIcon('forward')}</b>`;
   document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;
   if(!value){paused=false;if(pauseDialog.open)pauseDialog.close();canvas.focus({preventScroll:true});}lastHud='';updateHud();
 }
@@ -117,7 +118,7 @@ function handleEvents(events:import('./physics.ts').PhysicsEvent[],playSound=tru
 }
 function save(){try{localStorage.setItem(CAMPAIGN_STORAGE_KEY,JSON.stringify(records));}catch{toast('Session saved in memory. Browser storage is unavailable.');}}
 function renderMissionBest(){
-  const best=records[index];$('best-score').innerHTML=`YOUR BEST<br><b>${best?'✦'.repeat(best.stars)+'·'.repeat(3-best.stars):'— — —'}</b>`;
+  const best=records[index];$('best-score').innerHTML=`YOUR BEST<br><b role="img" aria-label="${best?`${best.stars} of 3 stars`:'No score yet'}">${runeStars(best?.stars??0)}</b>`;
 }
 function renderDailyBest(day:number){$('best-score').innerHTML=`TODAY’S BEST<br><b>${dailyLeaderboard.best(day)??'—'}</b>`;}
 function currentTip(){
@@ -130,7 +131,7 @@ function renderMissions(){
   $('missions').innerHTML=missions.map((m,i)=>{
     const heading=m.act!==act?`<p class="act-title">0${m.act} / ${m.chapter.toUpperCase()}</p>`:'';act=m.act;
     const record=records[i];
-    return heading+`<button class="mission-button ${i===index&&campaign?'selected':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}${record?`, ${record.stars} of 3 stars`:''}" ${i===index&&campaign?'aria-current="true"':''}><span class="mission-index">${record?'✓':String(i+1).padStart(2,'0')}</span><span><span class="mission-name">${m.title}</span><span class="mission-stars ${record?'earned':''}">${record?'✦'.repeat(record.stars)+'·'.repeat(3-record.stars):'· · ·'}</span></span>${i===index&&campaign?'<span class="mission-arrow">↗</span>':''}</button>`;
+    return heading+`<button class="mission-button ${i===index&&campaign?'selected':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}${record?`, ${record.stars} of 3 stars`:''}" ${i===index&&campaign?'aria-current="true"':''}><span class="mission-index">${record?runeIcon('verified'):String(i+1).padStart(2,'0')}</span><span><span class="mission-name">${m.title}</span><span class="mission-stars ${record?'earned':''}">${runeStars(record?.stars??0)}</span></span>${i===index&&campaign?`<span class="mission-arrow">${runeIcon('forward')}</span>`:''}</button>`;
   }).join('');
   const completed=records.filter(Boolean).length;const stars=records.reduce((n,r)=>n+(r?.stars??0),0);
   $('mission-count').textContent=`${completed} / 12`;$('total-stars').textContent=String(stars);$('campaign-progress').style.width=`${completed/12*100}%`;
@@ -147,14 +148,14 @@ function loadMission(next:number,free=false,day?:number){
   const [cue,target]=session.balls;
   angle=day!==undefined?Math.atan2(target.y-cue.y,target.x-cue.x):next===0?Math.atan2(-120,-250):-Math.PI/4;power=.45;powerInput.value='45';
   $('result-overlay').classList.add('hidden');$('result-overlay').classList.remove('rune-victory');
-  $('mission-number').textContent=day!==undefined?'✦':practice?'∞':String(index+1).padStart(2,'0');
+  $('mission-number').innerHTML=day!==undefined?runeIcon('award'):practice?runeIcon('unlimited'):String(index+1).padStart(2,'0');
   $('mission-title').textContent=practice?'The open table':m.title;
   $('mission-chapter').textContent=day!==undefined?`${m.chapter} / UTC DAILY TABLE`:practice?'NO PRESSURE / JUST POOL':`CHAPTER 0${m.act} / ${m.chapter.toUpperCase()}`;
   $('difficulty').textContent=practice?'FREE PLAY':m.difficulty.toUpperCase();
   $('objective').textContent=practice?'Clear the rack. Take your time.':m.objective;
   $('mission-tip').textContent=currentTip();
   $('campaign-nav').classList.toggle('active',!practice&&day===undefined);$('practice-nav').classList.toggle('active',practice);$('daily-nav').classList.toggle('active',day!==undefined);
-  if(day!==undefined)renderDailyBest(day);else if(practice)$('best-score').innerHTML='YOUR TABLE<br><b>∞</b>';else renderMissionBest();
+  if(day!==undefined)renderDailyBest(day);else if(practice)$('best-score').innerHTML=`YOUR TABLE<br><b>${runeIcon('unlimited')}</b>`;else renderMissionBest();
   renderMissions();lastHud='';updateHud();
 }
 function updateHud(){
@@ -183,13 +184,13 @@ function updateHud(){
     for(const id of ['campaign-nav','practice-nav','online-nav','daily-nav'])$(id).classList.remove('active');$('cpu-nav').classList.add('active');
     if(match.winner!==null&&!cpuResultShown){
       cpuResultShown=true;cancelCharge();const won=match.winner===0;
-      $('result-kicker').textContent='THE CLUB CHALLENGE';$('result-title').textContent=won?'You beat the CPU!':'CPU takes the table.';$('result-description').textContent=match.reason;$('result-stars').textContent=won?'✦':'↻';$('next-mission').textContent='Rematch';$('result-retry').textContent='Back to menu';$('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);if(won)audio.win();
+      $('result-kicker').textContent='THE CLUB CHALLENGE';$('result-title').textContent=won?'You beat the CPU!':'CPU takes the table.';$('result-description').textContent=match.reason;$('result-stars').innerHTML=runeIcon(won?'award':'restart');$('next-mission').textContent='Rematch';$('result-retry').textContent='Back to menu';$('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);if(won)audio.win();
     }
     return;
   }
   if(online?.active){
     document.querySelector('.hud-stats small')!.textContent='TURN';
-    $('mission-number').textContent='ᛟ';$('mission-title').textContent=duel?`${duel.mode} duel`:'Online duel';$('mission-chapter').textContent='THE DUEL PORTAL / LIVE MULTIPLAYER';$('difficulty').textContent='ONLINE VS';
+    $('mission-number').innerHTML=runeIcon('portal');$('mission-title').textContent=duel?`${duel.mode} duel`:'Online duel';$('mission-chapter').textContent='THE DUEL PORTAL / LIVE MULTIPLAYER';$('difficulty').textContent='ONLINE VS';
     $('objective').textContent=duel?duel.winner!==null?`${online.names[duel.winner]} wins!`:duel.ballInHand?`${online.names[duel.turn]}: place the cue on clear felt.`:`${online.names[duel.turn]}'s turn${duel.inShot?' · balls in motion':''}`:'Create a room or join a friend to play.';
     if(prompt)$('objective').textContent=prompt;
     $('shots-left').textContent=duel?(duel.turn===online.player?'YOU':'RIVAL'):'—';$('shots-left').style.color='';
@@ -197,14 +198,14 @@ function updateHud(){
     $('potted-count').textContent=duel?.mode==='9-ball'?(Number.isFinite(duel.lowest)?String(duel.lowest):'—'):duel?.groups[online.player]?String(duel.groupRemaining(online.player)):String(duel?.potted.length??0);
     $<HTMLButtonElement>('shoot-button').disabled=!online.canShoot;powerInput.disabled=!online.canShoot;$<HTMLButtonElement>('restart-button').disabled=true;
     $('power-value').textContent=`${Math.round(power*100)}%`;$('table-status').textContent=online.connected&&duel?duel.reason+warning:'WAITING AT THE PORTAL';
-    $('mission-tip').textContent=VS_RULES[duel?.mode??online.mode];$('best-score').innerHTML='ONLINE<br><b>ᛟ</b>';
+    $('mission-tip').textContent=VS_RULES[duel?.mode??online.mode];$('best-score').innerHTML=`ONLINE<br><b>${runeIcon('portal')}</b>`;
     $('online-nav').classList.add('active');$('campaign-nav').classList.remove('active');$('practice-nav').classList.remove('active');$('daily-nav').classList.remove('active');
     if(!duel||duel.winner===null){$('result-overlay').classList.add('hidden');onlineResultShown=false;}
     return;
   }
   $('online-nav').classList.remove('active');$<HTMLButtonElement>('restart-button').disabled=false;
   document.querySelector('.hud-stats small')!.textContent='SHOTS LEFT';
-  $('shots-left').textContent=practice?'∞':String(session.remaining);
+  $('shots-left').innerHTML=practice?`<span role="img" aria-label="Unlimited">${runeIcon('unlimited')}</span>`:String(session.remaining);
   $('shots-left').style.color=!practice&&session.remaining<=1?'var(--accent)':'';
   if(!practice&&session.mission.time){$('secondary-label').textContent='TIME LEFT';$('potted-count').textContent=`${Math.ceil(session.timeLeft)}s`;}
   else{$('secondary-label').textContent='POTTED';$('potted-count').innerHTML=`${session.potted.length} <i>/ ${session.total}</i>`;}
@@ -234,16 +235,16 @@ function showResult(){
     $('result-kicker').textContent=`THE DAILY TABLE / ${dailyDate(challengeDay)}`;
     $('result-title').textContent=won?`${score} points.`:'Daily run incomplete.';
     $('result-description').textContent=won?`${session.reason} Best on this browser: ${dailyLeaderboard.best(challengeDay)}.`:session.reason;
-    $('result-stars').textContent=won?'✦':'↻';
-    $('next-mission').textContent=won?'Daily leaderboard ↗':'Try again ↗';
+    $('result-stars').innerHTML=runeIcon(won?'award':'restart');
+    $('next-mission').innerHTML=`${won?'Daily leaderboard':'Try again'} <span>${runeIcon('forward')}</span>`;
     $('result-retry').textContent=won?'Play again':'Daily leaderboard';
     updateHud();return;
   }
   $('result-kicker').textContent=won?(index===11&&!practice?'WELCOME TO THE LEGENDS':'BEAUTIFULLY PLAYED'):'THE NIGHT ISN’T OVER';
   $('result-title').textContent=won?(practice?'A clean table.':index===11?'You own the table.':'Mission complete.'):'Find another angle.';
   $('result-description').textContent=won&&!practice?`${session.reason} ${session.stars} of 3 stars earned.`:session.reason;
-  $('result-stars').textContent=won&&!practice?'✦'.repeat(session.stars)+'☆'.repeat(3-session.stars):won?'✦':'↻';
-  $('next-mission').innerHTML=won&&!practice&&index<11?'Next mission <span>↗</span>':won&&!practice?'Back to the club <span>↗</span>':'Try again <span>↗</span>';
+  $('result-stars').innerHTML=won&&!practice?runeStars(session.stars):runeIcon(won?'award':'restart');
+  $('next-mission').innerHTML=`${won&&!practice&&index<11?'Next mission':won&&!practice?'Back to the club':'Try again'} <span>${runeIcon('forward')}</span>`;
   $('result-retry').textContent=won?'Play again':'Back to campaign';
   if(won&&!practice){const best=bestMissionRecord(records[index],{stars:session.stars,shots:session.shots});if(best!==records[index]){records[index]=best;save();}renderMissions();renderMissionBest();og.track('mission_complete',{mission:index+1,stars:session.stars,shots:session.shots});}
   else if(!won)og.track('mission_failed',{mission:index+1});
@@ -413,7 +414,7 @@ function frame(now:number){
     if(!replay&&!offline&&!online?.active&&session.outcome!=='playing')showResult();
     if(online?.active&&online.match&&online.match.winner!==null&&!onlineResultShown){
       onlineResultShown=true;const won=online.match.winner===online.player;
-      $('result-kicker').textContent='THE DUEL IS SEALED';$('result-title').textContent=won?'You forged a victory.':'A worthy rival.';$('result-description').textContent=online.match.reason;$('result-stars').textContent='ᛟ';$('next-mission').textContent='Request rematch';$('result-retry').textContent='Leave for campaign';$('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);if(won)audio.win();
+      $('result-kicker').textContent='THE DUEL IS SEALED';$('result-title').textContent=won?'You forged a victory.':'A worthy rival.';$('result-description').textContent=online.match.reason;$('result-stars').innerHTML=runeIcon('portal');$('next-mission').textContent='Request rematch';$('result-retry').textContent='Leave for campaign';$('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);if(won)audio.win();
     }
   }
   if(replay){

@@ -320,7 +320,6 @@ input:not([type="range"]), select {
 .onboarding-progress span { background: var(--border); }
 .onboarding-progress .reached { background: var(--rune-gold); }
 .result-card { margin: var(--space-3); padding: var(--space-4); }
-.result-card::before { color: var(--rune-gold); content: "ᚱ ᚢ ᚾ ᛖ"; }
 .replay-banner { max-width: calc(100% - var(--space-6)); padding: var(--space-2) var(--space-3); }
 #shot-replay-caption { flex-wrap: wrap; gap: var(--space-1) var(--space-2); white-space: normal; }
 #shot-replay-caption b { font-size: var(--type-label); }

@@ -1,4 +1,5 @@
 import { getTableDesign, TABLE_DESIGNS, type TableDesign } from './tables.ts';
+import { runeIcon } from './rune-icons.ts';
 import type { PoolRenderer } from './three-renderer.ts';
 
 const element=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
@@ -6,7 +7,7 @@ export class TableRoom {
   selected=getTableDesign(null);onSelect?:(design:TableDesign)=>void;onViewChange?:()=>void;
   constructor(public renderer:PoolRenderer){
     const collection=element('table-collection');
-    collection.innerHTML=TABLE_DESIGNS.map((d,i)=>`<button class="table-design" data-table="${d.id}" aria-pressed="false" style="--felt:${d.felt};--wood:${d.cabinet};--metal:${d.trim}"><span class="table-mini" aria-hidden="true"><i></i><b>ᛟ</b></span><span><small>RELIC 0${i+1}</small><strong>${d.name}</strong><em>${d.subtitle}</em></span><span class="design-check" aria-hidden="true">◇</span></button>`).join('');
+    collection.innerHTML=TABLE_DESIGNS.map((d,i)=>`<button class="table-design" data-table="${d.id}" aria-pressed="false" style="--felt:${d.felt};--wood:${d.cabinet};--metal:${d.trim}"><span class="table-mini" aria-hidden="true"><i></i><b>${runeIcon('portal')}</b></span><span><small>RELIC 0${i+1}</small><strong>${d.name}</strong><em>${d.subtitle}</em></span><span class="design-check" aria-hidden="true">${runeIcon('selected')}</span></button>`).join('');
     collection.addEventListener('click',e=>{const button=(e.target as HTMLElement).closest<HTMLButtonElement>('[data-table]');if(button&&!button.disabled)this.select(button.dataset.table!,true);});
     let saved:string|null=null;try{saved=localStorage.getItem('velvet-break-table-v1');}catch{}
     this.select(getTableDesign(saved).id);
