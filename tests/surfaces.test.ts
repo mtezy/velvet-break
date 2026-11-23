@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { cushionGeometry, placeBallShadow, surfaceUV } from '../src/surfaces.ts';
+import { createBallContactDecals, cushionGeometry, placeBallShadow, surfaceUV, updateBallContactDecals } from '../src/surfaces.ts';
 
 test('cushion top faces upward and its nose follows the original collision edge',()=>{
   const g=cushionGeometry(464);g.computeBoundingBox();
@@ -37,4 +37,25 @@ test('ball shadows stretch away from the lamp and reset to a compact contact pat
   assert.deepEqual(shadow.position.toArray(),[ball.x,.4,ball.z]);
   assert.deepEqual(shadow.scale.toArray(),[1,1,1]);
   assert.equal(shadow.rotation.z,0);
+});
+
+test('tight contact decals stay centered independently of the broader ball shadow',()=>{
+  const texture=new THREE.Texture(),decals=createBallContactDecals(texture),mesh=new THREE.Object3D();
+  const shadow=new THREE.Object3D(),lamp=new THREE.Vector3(0,530,-85),matrix=new THREE.Matrix4();
+  for(const economy of [false,true]){
+    mesh.position.set(economy?250:360,12,155);
+    placeBallShadow(shadow,mesh.position,lamp,economy);
+    updateBallContactDecals(decals,[{mesh}]);
+    assert.equal(decals.count,1);
+    decals.getMatrixAt(0,matrix);
+    const contact=new THREE.Vector3().setFromMatrixPosition(matrix);
+    assert.equal(contact.x,mesh.position.x);
+    assert.equal(contact.z,mesh.position.z);
+    assert.ok(contact.y>shadow.position.y);
+    assert.ok(decals.geometry.parameters.width<52);
+  }
+  mesh.visible=false;
+  updateBallContactDecals(decals,[{mesh}]);
+  assert.equal(decals.count,0);
+  decals.dispose();decals.geometry.dispose();decals.material.dispose();texture.dispose();
 });

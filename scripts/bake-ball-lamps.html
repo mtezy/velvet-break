@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bake the ball lamp environment</title>
+<button id="bake">Download baked lamp cubemap</button>
+<script type="module">
+import * as THREE from 'three';
+import { bakeBallLampEnvironment } from './bake-ball-lamps.js';
+
+window.bakeBallLamps=async()=>{
+  const renderer=new THREE.WebGLRenderer();
+  const pmrem=new THREE.PMREMGenerator(renderer);
+  const target=bakeBallLampEnvironment(pmrem);
+  const gl=renderer.getContext(),levels=[];
+  // File textures flip the environment's X axis, unlike render targets.
+  for(const face of [1,0,2,3,4,5]){
+    for(const [lod,{width}] of target.texture.mipmaps.entries()){
+      renderer.setRenderTarget(target,face,lod);
+      const source=new Float32Array(width*width*4);
+      gl.readPixels(0,0,width,width,gl.RGBA,gl.FLOAT,source);
+      if(gl.getError()!==gl.NO_ERROR)throw Error('Float cubemap readback failed');
+      const pixels=new DataView(new ArrayBuffer(source.length*2));
+      for(let y=0;y<width;y++)for(let x=0;x<width;x++)for(let channel=0;channel<4;channel++){
+        const value=source[(y*width+width-1-x)*4+channel];
+        pixels.setUint16(((y*width+x)*4+channel)*2,THREE.DataUtils.toHalfFloat(value),true);
+      }
+      levels.push(pixels.buffer);
+    }
+  }
+  renderer.setRenderTarget(null);target.dispose();pmrem.dispose();renderer.dispose();
+  const stream=new Blob(levels).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Response(stream).blob();
+};
+
+document.querySelector('#bake').onclick=async()=>{
+  const url=URL.createObjectURL(await window.bakeBallLamps());
+  const link=document.createElement('a');link.href=url;link.download='ball-lamps.bin';link.click();
+};
+</script>
