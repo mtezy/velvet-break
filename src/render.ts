@@ -1,7 +1,7 @@
-import { TABLE, POCKETS, BALL_COLORS, aimTrace, type Ball } from './physics.ts';
+import { TABLE, POCKETS, BALL_COLORS, aimTrace, predictCuePath, type Ball, type Spin } from './physics.ts';
 import { TABLE_DESIGNS, type TableDesign } from './tables.ts';
 export interface Particle {x:number;y:number;vx:number;vy:number;life:number;color:string;}
-export interface RenderState {balls:Ball[];angle:number;power:number;charge:number;aiming:boolean;targetPocket?:number;particles:Particle[];time:number;}
+export interface RenderState {balls:Ball[];angle:number;power:number;spin?:Spin;charge:number;aiming:boolean;targetPocket?:number;particles:Particle[];time:number;}
 const ink = '#c5eedc';
 function roundRect(ctx:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,r:number,fill:string,stroke?:string) {
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}
@@ -51,6 +51,10 @@ export function render(ctx:CanvasRenderingContext2D,state:RenderState,design:Tab
     ctx.save();ctx.strokeStyle=ink;ctx.globalAlpha=.55;ctx.lineWidth=1.5;ctx.setLineDash([5,8]);ctx.beginPath();ctx.moveTo(cue.x,cue.y);ctx.lineTo(trace.x,trace.y);ctx.stroke();ctx.setLineDash([]);
     ctx.beginPath();ctx.arc(trace.x,trace.y,TABLE.radius,0,Math.PI*2);ctx.strokeStyle='#e1f5de';ctx.globalAlpha=.55;ctx.stroke();
     if(trace.target){const target=trace.target;const a=Math.atan2(target.y-trace.y,target.x-trace.x);ctx.setLineDash([3,6]);ctx.beginPath();ctx.moveTo(target.x,target.y);ctx.lineTo(target.x+Math.cos(a)*95,target.y+Math.sin(a)*95);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=.75;ctx.beginPath();ctx.arc(target.x,target.y,18,0,Math.PI*2);ctx.strokeStyle='#f3ce8a';ctx.stroke();}
+    ctx.restore();
+    const path=predictCuePath(state.balls,state.angle,state.power,state.spin);
+    ctx.save();ctx.strokeStyle='#ffffff';ctx.lineWidth=1;
+    for(let i=1;i<path.length;i++){ctx.globalAlpha=.8*(1-(i-1)/(path.length-1));ctx.beginPath();ctx.moveTo(path[i-1].x,path[i-1].y);ctx.lineTo(path[i].x,path[i].y);ctx.stroke();}
     ctx.restore();
     const pull=state.charge>0?state.power*70:0,dx=Math.cos(state.angle),dy=Math.sin(state.angle);
     ctx.save();ctx.translate(cue.x-dx*(28+pull),cue.y-dy*(28+pull));ctx.rotate(state.angle+Math.PI);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ball, simulate, moving, strike, aimTrace, respot, TABLE, clampSpin } from '../src/physics.ts';
+import { ball, simulate, moving, strike, aimTrace, respot, TABLE, clampSpin, predictCuePath } from '../src/physics.ts';
 import { Session } from '../src/session.ts';
 import { missions, createLayout, practiceLayout } from '../src/missions.ts';
 
@@ -10,6 +10,32 @@ function spinHit(y:number,targetX=350){
   for(let i=0;i<1200;i++){const events=simulate([cue,target],1/240);if(events.some(e=>e.type==='collision'))return {cue,target};}
   assert.fail('Expected object contact');
 }
+test('predicted stun, follow and draw directions match the fixed-step contact simulation',()=>{
+  for(const y of [0,1,-1]){
+    const balls=[ball(0,300,330),ball(1,370,340)],before=structuredClone(balls);
+    const path=predictCuePath(balls,0,.6,{x:0,y});assert.ok(path.length>1);assert.deepEqual(balls,before);
+    const cue=balls[0];strike(cue,0,.6,{x:0,y});
+    for(let i=0;i<2400&&!cue.spinContact;i++)simulate(balls,1/240);
+    assert.equal(cue.spinContact,true);
+    const predicted=Math.atan2(path[1].y-path[0].y,path[1].x-path[0].x),actual=Math.atan2(cue.vy,cue.vx);
+    assert.ok(Math.abs(Math.atan2(Math.sin(predicted-actual),Math.cos(predicted-actual)))<3*Math.PI/180);
+    const length=path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p.x-path[i].x,p.y-path[i].y),0);assert.ok(length<=80.001);
+  }
+});
+test('cue prediction includes its first cushion bounce and responds to power',()=>{
+  const balls=[ball(0,300,140),ball(1,370,150)];
+  const path=predictCuePath(balls,0,.8),rail=path.findIndex(p=>p.y===TABLE.top+TABLE.radius);
+  assert.ok(rail>0&&rail<path.length-1);assert.ok(path[rail+1].y>path[rail].y);
+  const length=(power:number)=>{const p=predictCuePath(balls,0,power);return p.slice(1).reduce((n,b,i)=>n+Math.hypot(b.x-p[i].x,b.y-p[i].y),0);};
+  assert.ok(length(.8)>length(.2));
+});
+test('cue prediction is empty for no contact, unreachable targets, inactive cue or invalid input',()=>{
+  assert.deepEqual(predictCuePath([ball(0,300,330)],0,.5),[]);
+  assert.deepEqual(predictCuePath([ball(0,150,330),ball(1,1000,330)],0,0),[]);
+  const cue=ball(0,300,330);cue.active=false;assert.deepEqual(predictCuePath([cue,ball(1,350,330)],0,.5),[]);
+  assert.deepEqual(predictCuePath([ball(0,300,330)],NaN,.5),[]);
+  assert.deepEqual(predictCuePath([ball(0,300,330)],0,.5,{x:2,y:0}),[]);
+});
 test('full-hit draw reverses, follow continues forward, and centre stun nearly stops',()=>{
   assert.ok(spinHit(-1).cue.vx < -350);
   assert.ok(spinHit(1).cue.vx > 350);

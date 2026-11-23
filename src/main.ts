@@ -211,7 +211,7 @@ function frame(now:number){
       $('result-kicker').textContent='THE DUEL IS SEALED';$('result-title').textContent=won?'You forged a victory.':'A worthy rival.';$('result-description').textContent=online.match.reason;$('result-stars').textContent='ᛟ';$('next-mission').textContent='Request rematch';$('result-retry').textContent='Leave for campaign';$('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);if(won)audio.win();
     }
   }
-  renderer.render({balls:titleOpen?titleBalls:currentBalls(),angle,power,charge:charging?1:0,aiming:canShoot()&&!paused&&!hostPaused,targetPocket:!titleOpen&&!online?.active&&!practice&&session.mission.rule==='called'?session.mission.pocket:undefined,particles:renderer.effects&&!titleOpen?particles:[],time:now});
+  renderer.render({balls:titleOpen?titleBalls:currentBalls(),angle,power,spin,charge:charging?1:0,aiming:canShoot()&&!paused&&!hostPaused,targetPocket:!titleOpen&&!online?.active&&!practice&&session.mission.rule==='called'?session.mission.pocket:undefined,particles:renderer.effects&&!titleOpen?particles:[],time:now});
   updateHud();requestAnimationFrame(frame);
 }
 online=new OnlineGame({change:()=>{lastHud='';updateHud();},table:(id,locked)=>{if(room.selected.id!==id)room.select(id);room.setLocked(locked);},tableId:()=>room.selected.id,events:handleEvents,shot:shotEffect,exit:()=>loadMission(index)});

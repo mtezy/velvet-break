@@ -97,3 +97,28 @@ export function aimTrace(balls: Ball[], angle: number) {
   if (wall < length) { length=wall; target=undefined; }
   return {x: cue.x + dx*length, y: cue.y + dy*length, target, length};
 }
+export function predictCuePath(balls:Ball[],angle:number,power:number,spin:Spin={x:0,y:0}):{x:number;y:number}[] {
+  const original=balls.find(b=>b.id===0);
+  if(!original?.active||!Number.isFinite(angle)||!Number.isFinite(power)||!validSpin(spin))return [];
+  const trace=aimTrace(balls,angle);if(!trace.target)return [];
+  const copies=balls.map(b=>({...b,spin:{...b.spin??{x:0,y:0}},trail:[]})),cue=copies.find(b=>b.id===0)!;
+  strike(cue,angle,power,spin);
+  const step=1/240;
+  for(let i=0;i<2400;i++){
+    const events=simulate(copies,step);
+    if(events.some(e=>e.type==='rail'&&e.ball.id===0)||!cue.active)return [];
+    if(cue.spinContact)break;
+    if(!moving([cue]))return [];
+  }
+  if(!cue.spinContact||Math.hypot(cue.vx,cue.vy)<4)return [];
+  cue.x=trace.x;cue.y=trace.y;
+  const path=[{x:cue.x,y:cue.y}];let distance=0,bounces=0;
+  for(let i=0;i<36&&distance<80&&moving([cue]);i++){
+    const before={x:cue.x,y:cue.y},events=simulate([cue],step);
+    if(!cue.active)break;
+    const segment=Math.hypot(cue.x-before.x,cue.y-before.y),fraction=Math.min(1,(80-distance)/Math.max(segment,1e-9));
+    path.push({x:before.x+(cue.x-before.x)*fraction,y:before.y+(cue.y-before.y)*fraction});distance+=segment;
+    if(events.some(e=>e.type==='rail')&&++bounces>1)break;
+  }
+  return path;
+}

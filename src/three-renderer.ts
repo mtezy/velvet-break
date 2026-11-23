@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BALL_COLORS, TABLE, POCKETS, aimTrace } from './physics.ts';
+import { BALL_COLORS, TABLE, POCKETS, aimTrace, predictCuePath } from './physics.ts';
 import { render as renderFallback, type RenderState } from './render.ts';
 import { getTableDesign, type TableDesign } from './tables.ts';
 import { buildTableModel, disposeTableModel } from './table-model.ts';
@@ -23,6 +23,7 @@ export class PoolRenderer {
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
   clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
+  cuePath=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(37*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(37*4),4)),new THREE.LineBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,opacity:.8,depthTest:false,depthWrite:false}));
   constructor(public canvas:HTMLCanvasElement){
     const lineMaterial=new THREE.LineDashedMaterial({color:0xc5eedc,dashSize:5,gapSize:8,transparent:true,opacity:.55,depthTest:false});
     this.aim=new THREE.Line(new THREE.BufferGeometry(),lineMaterial);this.targetLine=new THREE.Line(new THREE.BufferGeometry(),lineMaterial.clone());
@@ -48,6 +49,10 @@ export class PoolRenderer {
     const practical=new THREE.PointLight(0xffd399,1.0,2300,0);practical.position.set(0,480,0);this.scene.add(practical);
     this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
     this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks);
+    this.scene.add(new THREE.HemisphereLight(0xe2f9ef,0x24202b,2.3));
+    const key=new THREE.DirectionalLight(0xffedcf,3.2);key.position.set(-350,800,-200);this.scene.add(key);
+    const fill=new THREE.DirectionalLight(0x87c5e5,1.3);fill.position.set(400,300,500);this.scene.add(fill);
+    this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath);
     this.ghost.rotation.x=this.targetRing.rotation.x=this.calledRing.rotation.x=-Math.PI/2;
     this.buildCue();
     // A small procedural studio reflection gives enamel balls curved highlights.
@@ -105,7 +110,7 @@ export class PoolRenderer {
   render(state:RenderState){
     if(!this.renderer){if(this.fallback){this.fallback.setTransform(this.canvas.width/1200,0,0,this.canvas.height/660,0,0);renderFallback(this.fallback,state,this.design);}return;}
     const dt=this.lastTime?Math.min(.2,(state.time-this.lastTime)/1000):0;this.lastTime=state.time;
-    const renderKey=[this.design.id,this.cueDesign.id,this.cueInspection,this.cueSpin,state.angle,state.power,state.charge,state.aiming,state.targetPocket,...state.balls.map(b=>`${b.id}:${b.x.toFixed(2)}:${b.y.toFixed(2)}:${b.active}`)].join('|');
+    const renderKey=[this.design.id,this.cueDesign.id,this.cueInspection,this.cueSpin,state.angle,state.power,state.spin?.x,state.spin?.y,state.charge,state.aiming,state.targetPocket,...state.balls.map(b=>`${b.id}:${b.x.toFixed(2)}:${b.y.toFixed(2)}:${b.active}`)].join('|');
     if(!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length)return;
     this.lastRenderKey=renderKey;this.dirty=false;
     const isMoving=state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
@@ -122,7 +127,14 @@ export class PoolRenderer {
     if(this.cueDisplay.visible){const direction=this.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);this.cueDisplay.position.copy(this.camera.position).addScaledVector(direction,900).addScaledVector(right,130).addScaledVector(up,this.camera.aspect<.8?95:10);this.cueDisplay.quaternion.copy(this.camera.quaternion);this.cueDisplay.rotateZ(-.12);this.cueDisplay.rotateY(this.cueSpin);this.cueDisplay.scale.setScalar(Math.min(1.2,this.camera.aspect*1.25));}
     const cue=state.balls[0],aiming=state.aiming&&cue.active&&!this.cueInspection;
     this.cue.visible=this.aim.visible=this.ghost.visible=aiming;this.targetRing.visible=this.targetLine.visible=false;
+    this.cuePath.visible=false;
     if(aiming){const trace=aimTrace(state.balls,state.angle);this.line(this.aim,cue,trace);this.ghost.position.set(trace.x-600,14,trace.y-330);
+      const path=predictCuePath(state.balls,state.angle,state.power,state.spin);
+      if(path.length>1){
+        this.cuePath.visible=true;const geometry=this.cuePath.geometry,position=geometry.getAttribute('position'),color=geometry.getAttribute('color');
+        path.forEach((p,i)=>{position.setXYZ(i,p.x-600,14.5,p.y-330);color.setXYZW(i,1,1,1,1-i/(path.length-1));});
+        position.needsUpdate=color.needsUpdate=true;geometry.setDrawRange(0,path.length);geometry.computeBoundingSphere();
+      }
       if(trace.target){const t=trace.target,a=Math.atan2(t.y-trace.y,t.x-trace.x);this.targetRing.visible=this.targetLine.visible=true;this.targetRing.position.set(t.x-600,15,t.y-330);this.line(this.targetLine,t,{x:t.x+Math.cos(a)*95,y:t.y+Math.sin(a)*95});}
       const pull=state.charge?state.power*70:0;this.cue.position.set(cue.x-600-Math.cos(state.angle)*(28+pull),17,cue.y-330-Math.sin(state.angle)*(28+pull));this.cue.rotation.y=-state.angle;
     }
