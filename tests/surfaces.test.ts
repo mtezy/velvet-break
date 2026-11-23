@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { cushionGeometry, surfaceUV } from '../src/surfaces.ts';
+import { cushionGeometry, placeBallShadow, surfaceUV } from '../src/surfaces.ts';
 
 test('cushion top faces upward and its nose follows the original collision edge',()=>{
   const g=cushionGeometry(464);g.computeBoundingBox();
@@ -22,4 +22,19 @@ test('large extruded surfaces sample the entire cloth image, not a clamped edge'
   const g=surfaceUV(new THREE.ExtrudeGeometry(shape,{depth:2,bevelEnabled:false}),1104,572),uv=g.getAttribute('uv');
   const us=Array.from({length:uv.count},(_,i)=>uv.getX(i)),vs=Array.from({length:uv.count},(_,i)=>uv.getY(i));
   assert.equal(Math.min(...us),0);assert.equal(Math.max(...us),1);assert.equal(Math.min(...vs),0);assert.equal(Math.max(...vs),1);g.dispose();
+});
+
+test('ball shadows stretch away from the lamp and reset to a compact contact patch in Economy',()=>{
+  const shadow=new THREE.Object3D(),lamp=new THREE.Vector3(0,530,-85),ball=new THREE.Vector3(360,12,155);
+  placeBallShadow(shadow,ball,lamp,false);
+  assert.ok(shadow.position.x>ball.x&&shadow.position.z>ball.z);
+  const axis=new THREE.Vector3(1,0,0).applyQuaternion(shadow.quaternion);
+  assert.ok(axis.distanceTo(shadow.position.clone().sub(ball).setY(0).normalize())<1e-9);
+  const distantWidth=shadow.scale.x;
+  placeBallShadow(shadow,new THREE.Vector3(lamp.x,ball.y,lamp.z),lamp,false);
+  assert.ok(shadow.scale.x<distantWidth);
+  placeBallShadow(shadow,ball,lamp,true);
+  assert.deepEqual(shadow.position.toArray(),[ball.x,.4,ball.z]);
+  assert.deepEqual(shadow.scale.toArray(),[1,1,1]);
+  assert.equal(shadow.rotation.z,0);
 });

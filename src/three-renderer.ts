@@ -9,11 +9,13 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DEFAULT_CAMERA, cameraFit, type CameraSettings } from './camera-settings.ts';
 import { buildCueModel } from './cue-model.ts';
 import { getCueDesign, type CueDesign } from './cues.ts';
-import { contactShadow } from './surfaces.ts';
+import { contactShadow, placeBallShadow } from './surfaces.ts';
 import { BALL_LABEL_SCALE, mobileBallLabelScale, type ProjectedBallLabel } from './ball-labels.ts';
 import { titleCameraPosition } from './title-camera.ts';
 
 interface BallLabel extends ProjectedBallLabel { sprite:THREE.Sprite; texture:THREE.CanvasTexture; }
+
+const lampPosition=new THREE.Vector3(0,530,-85);
 
 function drawBallLabel(canvas:HTMLCanvasElement,id:number,phone:boolean){
   const ctx=canvas.getContext('2d')!;
@@ -75,10 +77,11 @@ export class PoolRenderer {
     this.controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};this.controls.touches={ONE:null,TWO:null};
     this.controls.addEventListener('start',()=>{this.orbiting=true;this.dirty=true;});this.controls.addEventListener('end',()=>{this.orbiting=false;this.dirty=true;});
     this.controls.addEventListener('change',()=>{const t=this.controls!.target,x=THREE.MathUtils.clamp(t.x,-400,400),z=THREE.MathUtils.clamp(t.z,-300,300);this.camera.position.x+=x-t.x;this.camera.position.z+=z-t.z;t.x=x;t.z=z;this.dirty=true;});this.setView('club');
-    this.scene.add(new THREE.HemisphereLight(0xc5e2ed,0x171712,.7));
-    const key=new THREE.DirectionalLight(0xfff4df,2.1);key.position.set(-350,1100,350);this.scene.add(key);
-    const fill=new THREE.DirectionalLight(0xa0d5ed,.65);fill.position.set(600,450,-600);this.scene.add(fill);
-    const practical=new THREE.PointLight(0xffd399,.35,2100,0);practical.position.set(0,480,0);this.scene.add(practical);
+    this.scene.add(new THREE.HemisphereLight(0xc5e2ed,0x171712,.65));
+    const key=new THREE.DirectionalLight(0xfff4df,1);key.position.set(-350,1100,350);this.scene.add(key);
+    const fill=new THREE.DirectionalLight(0xa0d5ed,.55);fill.position.set(600,450,-600);this.scene.add(fill);
+    const practical=new THREE.SpotLight(0xffc083,2600,1600,1.03,.6,1);
+    practical.position.copy(lampPosition);this.scene.add(practical,practical.target);
     this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
     this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath,this.cueStop);
     this.cuePath.renderOrder=20;this.cueStop.renderOrder=21;this.cueStop.rotation.x=-Math.PI/2;
@@ -131,7 +134,7 @@ export class PoolRenderer {
     const map=new THREE.CanvasTexture(mapCanvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=Math.min(4,this.renderer!.capabilities.getMaxAnisotropy());
     const material=this.software?new THREE.MeshStandardMaterial({map,roughness:.13,metalness:0,envMapIntensity:1.1}):new THREE.MeshPhysicalMaterial({map,roughness:.16,metalness:0,envMapIntensity:1,clearcoat:1,clearcoatRoughness:.06});
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(TABLE.radius,32,24),material);mesh.position.set(x-600,12,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;this.scene.add(mesh);
-    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(42,42),new THREE.MeshBasicMaterial({map:this.shadowMap,transparent:true,opacity:.82,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.set(x-599,.4,y-328);this.scene.add(shadow);
+    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(42,42),new THREE.MeshBasicMaterial({map:this.shadowMap,transparent:true,opacity:.82,depthWrite:false}));this.scene.add(shadow);
     const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;drawBallLabel(labelCanvas,id,this.phoneLabels);
     const labelMap=new THREE.CanvasTexture(labelCanvas);labelMap.colorSpace=THREE.SRGBColorSpace;
     const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:labelMap,transparent:true,depthWrite:false,toneMapped:false,fog:!this.phoneLabels}));sprite.scale.set(BALL_LABEL_SCALE,BALL_LABEL_SCALE,1);sprite.renderOrder=2;this.scene.add(sprite);
@@ -230,9 +233,11 @@ export class PoolRenderer {
     const ids=new Set(state.balls.map(b=>b.id));
     let hasPhoneLabels=false;
     for(const [id,{mesh,shadow,label:{sprite,texture}}]of this.balls){mesh.visible=false;shadow.visible=false;sprite.visible=false;if(!ids.has(id)){this.scene.remove(mesh,shadow,sprite);mesh.geometry.dispose();(mesh.material as THREE.MeshStandardMaterial).map?.dispose();(mesh.material as THREE.Material).dispose();shadow.geometry.dispose();(shadow.material as THREE.Material).dispose();texture.dispose();sprite.material.dispose();this.balls.delete(id);}}
+    const economyShadows=this.quality==='economy';
     for(const b of state.balls){let rec=this.balls.get(b.id);if(!rec)rec=this.createBall(b.id,b.x,b.y);rec.mesh.visible=b.active;rec.shadow.visible=b.active;
       const dx=b.x-rec.lastX,dz=b.y-rec.lastY,d=Math.hypot(dx,dz);if(!changedReplay&&d>0&&d<100){const axis=new THREE.Vector3(dz,0,-dx).normalize();rec.mesh.rotateOnWorldAxis(axis,d/TABLE.radius);}rec.lastX=b.x;rec.lastY=b.y;
-      rec.mesh.position.set(b.x-600,12,b.y-330);rec.shadow.position.set(b.x-599,.4,b.y-328);
+      rec.mesh.position.set(b.x-600,12,b.y-330);
+      if(b.active)placeBallShadow(rec.shadow,rec.mesh.position,lampPosition,economyShadows);
       const {sprite}=rec.label;
       sprite.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&(!this.cueInspection||!!replay)&&Math.hypot(b.vx,b.vy)<10;
       if(sprite.visible){

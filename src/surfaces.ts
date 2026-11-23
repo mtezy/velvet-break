@@ -35,6 +35,22 @@ export function contactShadow(){
   const g=c.createRadialGradient(32,32,4,32,32,31);g.addColorStop(0,'#000904c9');g.addColorStop(.35,'#000904a0');g.addColorStop(.65,'#00090448');g.addColorStop(1,'#00090400');c.fillStyle=g;c.fillRect(0,0,64,64);return new THREE.CanvasTexture(canvas);
 }
 
+export function placeBallShadow(shadow:THREE.Object3D,ball:THREE.Vector3,lamp:THREE.Vector3,economy:boolean){
+  const height=.4;
+  if(economy){
+    shadow.position.set(ball.x,height,ball.z);
+    shadow.rotation.set(-Math.PI/2,0,0);
+    shadow.scale.set(1,1,1);
+    return;
+  }
+  const dx=ball.x-lamp.x,dz=ball.z-lamp.z;
+  const projection=(ball.y-height)/(lamp.y-ball.y);
+  const spread=Math.hypot(dx,dz)/(lamp.y-ball.y);
+  shadow.position.set(ball.x+dx*projection,height,ball.z+dz*projection);
+  shadow.rotation.set(-Math.PI/2,0,-Math.atan2(dz,dx));
+  shadow.scale.set(1.2+spread*.38,.95,1);
+}
+
 /** A tapered K-profile nose meets the unchanged physics boundary exactly. */
 export function cushionGeometry(length:number){
   const shape=new THREE.Shape();shape.moveTo(-length/2+18,0);shape.lineTo(length/2-18,0);shape.lineTo(length/2,27);shape.lineTo(-length/2,27);shape.closePath();
