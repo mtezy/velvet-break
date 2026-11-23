@@ -11,6 +11,7 @@ import { buildCueModel } from './cue-model.ts';
 import { getCueDesign, type CueDesign } from './cues.ts';
 import { contactShadow } from './surfaces.ts';
 import { BALL_LABEL_SCALE, mobileBallLabelScale, type ProjectedBallLabel } from './ball-labels.ts';
+import { ballLampEnvironment, resinBallMaterial, setResinBallQuality } from './ball-finish.ts';
 
 interface BallLabel extends ProjectedBallLabel { sprite:THREE.Sprite; texture:THREE.CanvasTexture; }
 
@@ -35,7 +36,7 @@ export class PoolRenderer {
   cueDesign=getCueDesign(null);cueDisplay=new THREE.Group();cueInspection=false;cueSpin=0;
   pulses:{mesh:THREE.Mesh;age:number;duration:number;radius:number}[]=[];
   raycaster=new THREE.Raycaster();plane=new THREE.Plane(new THREE.Vector3(0,1,0),-12);
-  balls=new Map<number,{mesh:THREE.Mesh;shadow:THREE.Mesh;label:BallLabel;lastX:number;lastY:number}>();
+  balls=new Map<number,{mesh:THREE.Mesh<THREE.SphereGeometry,THREE.MeshPhysicalMaterial>;shadow:THREE.Mesh;label:BallLabel;lastX:number;lastY:number}>();
   labels=true;orbiting=false;
   private phoneViewport=matchMedia('(pointer: coarse) and (max-width: 520px), (pointer: coarse) and (max-height: 520px) and (max-width: 960px)');
   private phoneLabels=false;private viewportHeight=0;
@@ -43,7 +44,10 @@ export class PoolRenderer {
   private labelPosition=new THREE.Vector3();
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
-  shadowMap=contactShadow();
+  private ballGeometry=new THREE.SphereGeometry(TABLE.radius,32,24);
+  private contactGeometry=new THREE.PlaneGeometry(TABLE.radius*3.4,TABLE.radius*3.4).rotateX(-Math.PI/2);
+  private contactMaterial=new THREE.MeshBasicMaterial({map:contactShadow(),transparent:true,depthWrite:false,toneMapped:false,opacity:.87});
+  private ballEnvironment?:THREE.RenderTarget;
   clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
   cuePath=new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(241*2*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(241*2*4),4)).setIndex(Array.from({length:240},(_,i)=>[i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2]).flat()),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
   cueStop=new THREE.Mesh(new THREE.RingGeometry(4,6,32),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:.95,depthTest:false,depthWrite:false}));
@@ -81,7 +85,8 @@ export class PoolRenderer {
     this.buildCue();
     // Pre-filter once, including software GPUs: standard enamel needs a real
     // radiance map too. This is not a live reflection or an extra frame pass.
-    const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.025).texture;this.scene.environmentIntensity=.4;studio.dispose();pmrem.dispose();
+    const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.025).texture;this.scene.environmentIntensity=.4;studio.dispose();
+    this.ballEnvironment=ballLampEnvironment(pmrem);pmrem.dispose();
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
     this.resize();
   }
@@ -101,7 +106,9 @@ export class PoolRenderer {
   setTitleMode(value:boolean){this.titleMode=value;if(this.controls)this.controls.enabled=!value;if(value){this.camera.position.set(1100,420,1390);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;}
   setQuality(value:'auto'|'high'|'economy'){
     this.quality=value;this.renderScale=value==='economy'?.6:value==='high'?Math.min(window.devicePixelRatio,1.5):this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer?.setPixelRatio(this.renderScale);this.dirty=true;
+    for(const {mesh} of this.balls.values())setResinBallQuality(mesh.material,this.economyBallFinish);
   }
+  private get economyBallFinish(){return this.quality==='economy'||this.software;}
   pulse(x:number,y:number,color:string,radius=60,duration=.65){
     if(!this.effects||!this.renderer)return;
     const m=new THREE.Mesh(new THREE.RingGeometry(.89,1,32),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x-600,18,y-330);this.scene.add(m);this.pulses.push({mesh:m,age:0,duration,radius});
@@ -112,15 +119,15 @@ export class PoolRenderer {
   }
   setCue(design:CueDesign){this.cueDesign=design;this.dirty=true;if(!this.renderer)return;this.scene.remove(this.cue,this.cueDisplay);disposeTableModel(this.cue);disposeTableModel(this.cueDisplay);this.cue=buildCueModel(design);this.cueDisplay=buildCueModel(design);this.cueDisplay.visible=false;this.cueDisplay.traverse(child=>{if(child instanceof THREE.Mesh){child.renderOrder=100;const material=child.material as THREE.Material;material.depthTest=false;material.depthWrite=false;}});this.scene.add(this.cue,this.cueDisplay);}
   createBall(id:number,x:number,y:number){
-    const mapCanvas=document.createElement('canvas');mapCanvas.width=512;mapCanvas.height=256;const c=mapCanvas.getContext('2d')!;
+    const mapCanvas=document.createElement('canvas');mapCanvas.width=768;mapCanvas.height=384;const c=mapCanvas.getContext('2d')!;c.scale(1.5,1.5);
     c.fillStyle=id>8?'#fff8e7':BALL_COLORS[id];c.fillRect(0,0,512,256);
-    if(id>8){c.fillStyle=BALL_COLORS[id];c.fillRect(0,58,512,140);c.fillStyle='#ffffff44';c.fillRect(0,58,512,2);c.fillRect(0,196,512,2);}
-    if(id!==0)for(const cx of [128,384]){c.beginPath();c.arc(cx,128,39,0,Math.PI*2);c.fillStyle='#fff8e7';c.fill();c.lineWidth=2;c.strokeStyle='#29263833';c.stroke();c.font='bold 48px Arial';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#18202c';c.fillText(String(id),cx,131);}
+    if(id>8){c.fillStyle=BALL_COLORS[id];c.fillRect(0,58,512,140);}
+    if(id!==0)for(const cx of [128,384]){c.beginPath();c.arc(cx,128,41,0,Math.PI*2);c.fillStyle='#fff8e7';c.fill();c.font=`900 ${id>9?49:56}px Arial`;c.textAlign='center';c.textBaseline='middle';c.fillStyle='#101820';c.fillText(String(id),cx,131);}
     else for(const cx of [64,192,320,448]){c.beginPath();c.arc(cx,128,5,0,Math.PI*2);c.fillStyle='#b6353e';c.fill();}
     const map=new THREE.CanvasTexture(mapCanvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=Math.min(4,this.renderer!.capabilities.getMaxAnisotropy());
-    const material=this.software?new THREE.MeshStandardMaterial({map,roughness:.13,metalness:0,envMapIntensity:1.1}):new THREE.MeshPhysicalMaterial({map,roughness:.16,metalness:0,envMapIntensity:1,clearcoat:1,clearcoatRoughness:.06});
-    const mesh=new THREE.Mesh(new THREE.SphereGeometry(TABLE.radius,32,24),material);mesh.position.set(x-600,12,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;this.scene.add(mesh);
-    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(42,42),new THREE.MeshBasicMaterial({map:this.shadowMap,transparent:true,opacity:.82,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.set(x-599,.4,y-328);this.scene.add(shadow);
+    const material=resinBallMaterial(map,this.ballEnvironment!.texture,this.economyBallFinish);
+    const mesh=new THREE.Mesh(this.ballGeometry,material);mesh.position.set(x-600,TABLE.radius,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;
+    const shadow=new THREE.Mesh(this.contactGeometry,this.contactMaterial);shadow.position.set(mesh.position.x,.4,mesh.position.z);this.scene.add(mesh,shadow);
     const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;drawBallLabel(labelCanvas,id,this.phoneLabels);
     const labelMap=new THREE.CanvasTexture(labelCanvas);labelMap.colorSpace=THREE.SRGBColorSpace;
     const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:labelMap,transparent:true,depthWrite:false,toneMapped:false,fog:!this.phoneLabels}));sprite.scale.set(BALL_LABEL_SCALE,BALL_LABEL_SCALE,1);sprite.renderOrder=2;this.scene.add(sprite);
@@ -205,10 +212,10 @@ export class PoolRenderer {
     for(const pulse of [...this.pulses]){pulse.mesh.visible=!replay;pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));
     let hasPhoneLabels=false;
-    for(const [id,{mesh,shadow,label:{sprite,texture}}]of this.balls){mesh.visible=false;shadow.visible=false;sprite.visible=false;if(!ids.has(id)){this.scene.remove(mesh,shadow,sprite);mesh.geometry.dispose();(mesh.material as THREE.MeshStandardMaterial).map?.dispose();(mesh.material as THREE.Material).dispose();shadow.geometry.dispose();(shadow.material as THREE.Material).dispose();texture.dispose();sprite.material.dispose();this.balls.delete(id);}}
+    for(const [id,{mesh,shadow,label:{sprite,texture}}]of this.balls){mesh.visible=false;shadow.visible=false;sprite.visible=false;if(!ids.has(id)){this.scene.remove(mesh,shadow,sprite);mesh.material.map?.dispose();mesh.material.dispose();texture.dispose();sprite.material.dispose();this.balls.delete(id);}}
     for(const b of state.balls){let rec=this.balls.get(b.id);if(!rec)rec=this.createBall(b.id,b.x,b.y);rec.mesh.visible=b.active;rec.shadow.visible=b.active;
       const dx=b.x-rec.lastX,dz=b.y-rec.lastY,d=Math.hypot(dx,dz);if(!changedReplay&&d>0&&d<100){const axis=new THREE.Vector3(dz,0,-dx).normalize();rec.mesh.rotateOnWorldAxis(axis,d/TABLE.radius);}rec.lastX=b.x;rec.lastY=b.y;
-      rec.mesh.position.set(b.x-600,12,b.y-330);rec.shadow.position.set(b.x-599,.4,b.y-328);
+      rec.mesh.position.set(b.x-600,TABLE.radius,b.y-330);rec.shadow.position.set(rec.mesh.position.x,.4,rec.mesh.position.z);
       const {sprite}=rec.label;
       sprite.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&(!this.cueInspection||!!replay)&&Math.hypot(b.vx,b.vy)<10;
       if(sprite.visible){

@@ -32,7 +32,8 @@ export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'l
 
 export function contactShadow(){
   const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const c=canvas.getContext('2d')!;
-  const g=c.createRadialGradient(32,32,4,32,32,31);g.addColorStop(0,'#000904c9');g.addColorStop(.35,'#000904a0');g.addColorStop(.65,'#00090448');g.addColorStop(1,'#00090400');c.fillStyle=g;c.fillRect(0,0,64,64);return new THREE.CanvasTexture(canvas);
+  const g=c.createRadialGradient(32,32,0,32,32,31);g.addColorStop(0,'#020509eb');g.addColorStop(.42,'#020509c9');g.addColorStop(.65,'#02050979');g.addColorStop(.82,'#02050928');g.addColorStop(1,'#02050900');c.fillStyle=g;c.fillRect(0,0,64,64);
+  const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;return map;
 }
 
 /** A tapered K-profile nose meets the unchanged physics boundary exactly. */
