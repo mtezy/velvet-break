@@ -7,10 +7,9 @@
     --phone-bottom: env(safe-area-inset-bottom, 0px);
     --phone-header: calc(56px + var(--phone-top));
     --phone-tabs: calc(2 * var(--touch-target) + 17px + var(--phone-bottom));
-    --phone-shot-bottom: calc(var(--phone-tabs) + 8px);
-    --phone-view-bottom: calc(var(--phone-shot-bottom) + 96px);
-    --phone-view-height: calc(2 * var(--touch-target) + 6px);
-    --phone-status-bottom: calc(var(--phone-view-bottom) + var(--phone-view-height) + 6px);
+    --shot-hud-inset: calc(var(--phone-tabs) + 8px);
+    --shot-hud-height: 74px;
+    --phone-status-bottom: calc(var(--shot-hud-inset) + var(--shot-hud-height) + 8px);
   }
 
   button, summary, select, input:not([type=hidden]) {
@@ -59,7 +58,7 @@
 
   .mission-heading { top: calc(var(--phone-header) + 10px); }
   .table-hud { top: calc(var(--phone-header) + 48px); }
-  .canvas-wrap {
+  body:not(.title-open) .canvas-wrap {
     top: calc(var(--phone-header) + 110px);
     bottom: calc(var(--phone-status-bottom) + 22px);
     height: auto;
@@ -72,39 +71,20 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .table-status { bottom: var(--phone-status-bottom); font-size: 7px; }
+  .table-status { font-size: 7px; }
 
-  .shot-controls {
-    bottom: var(--phone-shot-bottom);
+  .shot-hud.shot-controls {
     left: calc(12px + var(--phone-left));
     right: calc(12px + var(--phone-right));
-    gap: 8px;
-    padding: 6px 8px;
+    width: auto;
+    transform: none;
   }
-  .spin-control { grid-template-columns: var(--touch-target) var(--touch-target); gap: 0; }
-  #spin-picker { width: var(--touch-target); height: var(--touch-target); grid-row: span 2; }
-  #spin-reset { min-height: var(--touch-target); }
-  #spin-value { font-size: 7px; }
-  .power-label, .power-control input, .power-ends { margin: 0; }
-  .power-control input { display: block; }
-
-  .view-toolbar {
-    bottom: var(--phone-view-bottom);
-    left: calc(12px + var(--phone-left));
+  .shot-hud #hud-view-options {
     right: calc(12px + var(--phone-right));
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 4px;
+    width: min(350px, calc(100vw - var(--phone-left) - var(--phone-right) - 24px));
+    max-height: calc(100dvh - var(--phone-header) - var(--phone-status-bottom) - 8px);
   }
-  .view-toolbar .camera-controls { padding: 0; gap: 0; }
-  .view-toolbar > button, .view-toolbar > :is(#quality-button, #labels-button, #replay-toggle) { grid-column: auto; }
-  .view-toolbar .camera-controls button, .view-toolbar #effects-button,
-  .view-toolbar #quality-button, .view-toolbar #camera-button,
-  .view-toolbar #labels-button, .view-toolbar #replay-toggle {
-    min-height: var(--touch-target);
-    padding: 4px 3px;
-    font-size: 10px;
-    white-space: normal;
-  }
+  #hud-view-options > button:not(#camera-button) { grid-column: auto; }
 
   .campaign-panel, .table-room, .online-panel, .camera-panel, .online-panel.connected {
     top: calc(var(--phone-header) + 8px);
@@ -127,25 +107,11 @@
   .title-table { bottom: calc(55px + var(--phone-bottom)); }
 
   @media (max-width: 360px) {
-    .shot-controls .primary-button { min-width: 64px; padding-inline: 8px; gap: 6px; }
-    .power-label { letter-spacing: 0; }
-    .power-ends { display: none; }
+    .shot-hud.shot-controls { gap: 2px; }
+    #hud-view-button svg { display: none; }
   }
 
   @media (max-height: 720px) {
-    :root {
-      --phone-view-height: var(--touch-target);
-      --phone-status-bottom: calc(var(--phone-view-bottom) + var(--phone-view-height) + 10px);
-    }
-    .view-toolbar {
-      display: flex;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      border-radius: 6px;
-      scrollbar-width: thin;
-    }
-    .view-toolbar > button { flex: 0 0 66px; }
-    .view-toolbar .camera-controls { flex: 0 0 max(65%, calc(4 * var(--touch-target) + 2px)); }
     .title-open .title-screen {
       display: flex;
       flex-direction: column;
