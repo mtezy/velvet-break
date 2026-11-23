@@ -1,0 +1,84 @@
+@media (prefers-reduced-motion: no-preference) {
+  @supports (transition-behavior: allow-discrete) and (interactivity: inert) {
+    :root {
+      --page-fade: 220ms ease;
+      --page-slide: 220ms cubic-bezier(.2,.7,.3,1);
+      --page-offset: 10px;
+    }
+
+    :where(.title-screen, .campaign-panel, .online-panel, .table-room, .camera-panel) {
+      transition: opacity var(--page-fade), translate var(--page-slide), display var(--page-fade) allow-discrete;
+    }
+
+    :where(body:not(.title-open) .title-screen,
+           body:not(.missions-open) .campaign-panel,
+           .title-open :is(.campaign-panel, .online-panel, .table-room, .camera-panel),
+           .online-panel.hidden, .table-room:not([open]), .camera-panel[hidden],
+           dialog:not([open], #shot-replay)) {
+      opacity: 0;
+      translate: 0 var(--page-offset);
+      interactivity: inert;
+    }
+
+    @media (max-width: 520px) {
+      body:not(.lobby-expanded) .online-panel.connected {
+        opacity: 0;
+        translate: 0 var(--page-offset);
+        interactivity: inert;
+      }
+    }
+
+    .table-room::details-content {
+      transition: content-visibility var(--page-fade) allow-discrete;
+    }
+
+    :where(dialog:not(#shot-replay)) {
+      transition: opacity var(--page-fade), translate var(--page-slide),
+        display var(--page-fade) allow-discrete, overlay var(--page-fade) allow-discrete;
+    }
+
+    :where(dialog:not(#shot-replay))::backdrop {
+      transition: opacity var(--page-fade), display var(--page-fade) allow-discrete,
+        overlay var(--page-fade) allow-discrete;
+    }
+
+    :where(dialog:not([open], #shot-replay))::backdrop {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .result-overlay {
+      transition: opacity var(--page-fade), display var(--page-fade) allow-discrete;
+    }
+
+    .result-overlay.hidden {
+      opacity: 0;
+      interactivity: inert;
+    }
+
+    :where(.result-card, .table-room [role="tabpanel"], .mission-heading, .table-hud, .shot-controls, .view-toolbar, .topbar nav) {
+      transition: opacity var(--page-fade), translate var(--page-slide);
+    }
+
+    .result-overlay.hidden .result-card {
+      translate: 0 var(--page-offset);
+    }
+
+    @starting-style {
+      :where(.title-screen, .campaign-panel, .online-panel, .table-room, .camera-panel, dialog:not(#shot-replay),
+             .table-room [role="tabpanel"], .mission-heading, .table-hud, .shot-controls, .view-toolbar, .topbar nav) {
+        opacity: 0;
+        translate: 0 var(--page-offset);
+      }
+
+      .result-overlay,
+      :where(dialog:not(#shot-replay))::backdrop {
+        opacity: 0;
+      }
+
+      .result-overlay .result-card {
+        translate: 0 var(--page-offset);
+      }
+    }
+  }
+}
