@@ -90,7 +90,12 @@ export class BreakFlash {
   start(economy:boolean){
     this.clear();
     this.layer.classList.toggle('break-highlight-economy',economy);
-    this.animation=this.layer.animate([{opacity:economy?.15:.32},{opacity:0}],{duration:220,easing:'ease-out'});
+    const peak=economy?.48:.64;
+    this.animation=this.layer.animate([
+      {opacity:peak},
+      {opacity:peak,offset:.14,easing:'ease-out'},
+      {opacity:0},
+    ],{duration:230});
   }
 
   clear(){this.animation?.cancel();}
