@@ -83,15 +83,20 @@ export function buildClubRoom(){
     const wall=c.createRadialGradient(512,113,46,512,113,512);
     wall.addColorStop(0,'#28554b');wall.addColorStop(1,'#1b2527');
     c.fillStyle=wall;c.fillRect(0,0,1024,256);
-    c.beginPath();c.roundRect(54,17,916,222,35);c.fillStyle='#101e21';c.fill();
+    const roundedFrame=(left:number,top:number,right:number,bottom:number,radius:number)=>{
+      c.beginPath();c.moveTo(left+radius,top);
+      c.arcTo(right,top,right,bottom,radius);c.arcTo(right,bottom,left,bottom,radius);
+      c.arcTo(left,bottom,left,top,radius);c.arcTo(left,top,right,top,radius);c.closePath();
+    };
+    roundedFrame(54,17,970,239,35);c.fillStyle='#101e21';c.fill();
     c.strokeStyle='#364c4b';c.lineWidth=4;c.stroke();
-    const frame=new Path2D();frame.roundRect(75,32,874,191,24);
+    roundedFrame(75,32,949,223,24);
     const drawTubes=(tube:()=>void,halo:string,core:string,width:number)=>{
       c.shadowColor=halo;c.shadowBlur=26;c.strokeStyle=halo;c.lineWidth=width+2;tube();tube();
       c.shadowBlur=0;c.strokeStyle=core;c.lineWidth=width;tube();
     };
     c.lineJoin=c.lineCap='round';c.textAlign='center';
-    drawTubes(()=>c.stroke(frame),'#b35e28','#f0b87f',3);
+    drawTubes(()=>c.stroke(),'#b35e28','#f0b87f',3);
     c.font='600 84px sans-serif';
     drawTubes(()=>c.strokeText('VELVET BREAK',512,137),'#36bda3','#bbffee',2.8);
     c.font='600 24px sans-serif';c.fillStyle='#f6d5a4';
