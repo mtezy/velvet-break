@@ -3,20 +3,23 @@ import * as THREE from 'three';
 export function ballLampEnvironment(pmrem:THREE.PMREMGenerator){
   const scene=new THREE.Scene();
   scene.background=new THREE.Color('#52504a');
-  const geometry=new THREE.CircleGeometry(98,24);
-  const material=new THREE.MeshBasicMaterial({color:new THREE.Color(7.0,5.3,3.6),toneMapped:false});
-  // Bake the three brass shades' luminous undersides from cloth height.
-  for(const x of [-330,0,330]){
-    const lamp=new THREE.Mesh(geometry,material);
-    lamp.position.set(x,531,0);lamp.rotation.x=Math.PI/2;scene.add(lamp);
+  const key=new THREE.PlaneGeometry(308,105),fill=new THREE.PlaneGeometry(146,58);
+  const keyLight=new THREE.MeshBasicMaterial({color:new THREE.Color(42,34,24),toneMapped:false});
+  const fillLight=new THREE.MeshBasicMaterial({color:new THREE.Color(13,10.5,8),toneMapped:false});
+  // Set the reflected shades back so their glints fall above the numbers in the club view.
+  const primary=new THREE.Mesh(key,keyLight);
+  primary.position.set(-65,438,-530);primary.lookAt(0,0,0);scene.add(primary);
+  for(const x of [-325,325]){
+    const lamp=new THREE.Mesh(fill,fillLight);
+    lamp.position.set(x,531,-238);lamp.rotation.x=Math.PI/2;scene.add(lamp);
   }
-  const target=pmrem.fromScene(scene,0,1,1000,{size:64});
-  geometry.dispose();material.dispose();
+  const target=pmrem.fromScene(scene,0,1,1000,{size:128});
+  key.dispose();fill.dispose();keyLight.dispose();fillLight.dispose();
   return target;
 }
 
 export function resinBallMaterial(map:THREE.Texture,envMap:THREE.Texture,economy:boolean){
-  const material=new THREE.MeshPhysicalMaterial({map,envMap,envMapIntensity:1.15,clearcoatRoughness:.075});
+  const material=new THREE.MeshPhysicalMaterial({map,envMap,envMapIntensity:1.15,clearcoatRoughness:.05});
   setResinBallQuality(material,economy);
   return material;
 }
@@ -24,5 +27,5 @@ export function resinBallMaterial(map:THREE.Texture,envMap:THREE.Texture,economy
 export function setResinBallQuality(material:THREE.MeshPhysicalMaterial,economy:boolean){
   // At zero clearcoat Three omits that shading lobe, keeping the base lamp reflection.
   material.clearcoat=economy?0:.85;
-  material.roughness=economy?.13:.19;
+  material.roughness=economy?.10:.16;
 }
