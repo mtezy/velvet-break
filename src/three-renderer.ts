@@ -48,10 +48,6 @@ export class PoolRenderer {
     const key=new THREE.DirectionalLight(0xffddaa,2.8);key.position.set(-260,900,200);this.scene.add(key);
     const practical=new THREE.PointLight(0xffd399,1.0,2300,0);practical.position.set(0,480,0);this.scene.add(practical);
     this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
-    this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks);
-    this.scene.add(new THREE.HemisphereLight(0xe2f9ef,0x24202b,2.3));
-    const key=new THREE.DirectionalLight(0xffedcf,3.2);key.position.set(-350,800,-200);this.scene.add(key);
-    const fill=new THREE.DirectionalLight(0x87c5e5,1.3);fill.position.set(400,300,500);this.scene.add(fill);
     this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath);
     this.ghost.rotation.x=this.targetRing.rotation.x=this.calledRing.rotation.x=-Math.PI/2;
     this.buildCue();
