@@ -37,7 +37,7 @@ export class PoolRenderer {
   labels=true;orbiting=false;
   private phoneViewport=matchMedia('(pointer: coarse) and (max-width: 520px), (pointer: coarse) and (max-height: 520px) and (max-width: 960px)');
   private phoneLabels=false;private viewportHeight=0;
-  private visibleLabels:BallLabel[]=[];
+  private labelNeighbors:BallLabel[]=[];
   private labelPosition=new THREE.Vector3();
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
@@ -137,16 +137,20 @@ export class PoolRenderer {
     if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}
   }
   private sizePhoneLabels(){
-    if(!this.visibleLabels.length||!this.viewportHeight)return;
+    if(!this.viewportHeight)return;
     this.camera.updateMatrixWorld();
     const focalLength=this.viewportHeight*this.camera.projectionMatrix.elements[5]/2;
-    for(const label of this.visibleLabels){
-      const point=this.labelPosition.copy(label.sprite.position).applyMatrix4(this.camera.matrixWorldInverse);
+    this.labelNeighbors.length=0;
+    for(const {mesh,label} of this.balls.values()){
+      if(!mesh.visible)continue;
+      const point=this.labelPosition.copy(label.sprite.visible?label.sprite.position:mesh.position).applyMatrix4(this.camera.matrixWorldInverse);
       label.pixelsPerUnit=focalLength/Math.max(this.camera.near,-point.z);
       label.x=point.x*label.pixelsPerUnit;label.y=point.y*label.pixelsPerUnit;
+      this.labelNeighbors.push(label);
     }
-    for(const label of this.visibleLabels){
-      const scale=mobileBallLabelScale(label,this.visibleLabels);
+    for(const label of this.labelNeighbors){
+      if(!label.sprite.visible)continue;
+      const scale=mobileBallLabelScale(label,this.labelNeighbors);
       label.sprite.scale.set(scale,scale,1);
     }
   }
@@ -169,16 +173,19 @@ export class PoolRenderer {
     const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode;
     for(const pulse of [...this.pulses]){pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));
-    this.visibleLabels.length=0;
+    let hasPhoneLabels=false;
     for(const [id,{mesh,shadow,label:{sprite,texture}}]of this.balls){mesh.visible=false;shadow.visible=false;sprite.visible=false;if(!ids.has(id)){this.scene.remove(mesh,shadow,sprite);mesh.geometry.dispose();(mesh.material as THREE.MeshStandardMaterial).map?.dispose();(mesh.material as THREE.Material).dispose();shadow.geometry.dispose();(shadow.material as THREE.Material).dispose();texture.dispose();sprite.material.dispose();this.balls.delete(id);}}
     for(const b of state.balls){let rec=this.balls.get(b.id);if(!rec)rec=this.createBall(b.id,b.x,b.y);rec.mesh.visible=b.active;rec.shadow.visible=b.active;
       const dx=b.x-rec.lastX,dz=b.y-rec.lastY,d=Math.hypot(dx,dz);if(d>0&&d<100){const axis=new THREE.Vector3(dz,0,-dx).normalize();rec.mesh.rotateOnWorldAxis(axis,d/TABLE.radius);}rec.lastX=b.x;rec.lastY=b.y;
       rec.mesh.position.set(b.x-600,12,b.y-330);rec.shadow.position.set(b.x-599,.4,b.y-328);
       const {sprite}=rec.label;
       sprite.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&!this.cueInspection&&Math.hypot(b.vx,b.vy)<10;
-      if(sprite.visible){sprite.position.copy(this.camera.position).sub(rec.mesh.position).normalize().multiplyScalar(12.6).add(rec.mesh.position);if(this.phoneLabels)this.visibleLabels.push(rec.label);}
+      if(sprite.visible){
+        sprite.position.copy(this.camera.position).sub(rec.mesh.position).normalize().multiplyScalar(12.6).add(rec.mesh.position);
+        if(this.phoneLabels)hasPhoneLabels=true;
+      }
     }
-    if(this.phoneLabels)this.sizePhoneLabels();
+    if(hasPhoneLabels)this.sizePhoneLabels();
     this.cueDisplay.visible=this.cueInspection&&!this.titleMode;
     if(this.cueDisplay.visible){const direction=this.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);this.cueDisplay.position.copy(this.camera.position).addScaledVector(direction,900).addScaledVector(right,130).addScaledVector(up,this.camera.aspect<.8?95:10);this.cueDisplay.quaternion.copy(this.camera.quaternion);this.cueDisplay.rotateZ(-.12);this.cueDisplay.rotateY(this.cueSpin);this.cueDisplay.scale.setScalar(Math.min(1.2,this.camera.aspect*1.25));}
     const cue=state.balls[0],aiming=state.aiming&&cue.active&&!this.cueInspection;
