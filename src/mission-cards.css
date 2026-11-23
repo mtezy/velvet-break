@@ -1,4 +1,5 @@
 @media(min-width:521px){.campaign-panel{width:min(640px,calc(100vw - 50px))}}
+.missions-open .campaign-panel{align-self:stretch}
 .campaign-panel .panel-copy{margin:14px 0 4px}
 .map-chapter{margin-top:18px}
 .map-chapter-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
