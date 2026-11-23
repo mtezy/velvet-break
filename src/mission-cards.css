@@ -1,0 +1,38 @@
+@media(min-width:521px){.campaign-panel{width:min(640px,calc(100vw - 50px))}}
+.campaign-panel .panel-copy{margin:14px 0 4px}
+.map-chapter{margin-top:18px}
+.map-chapter-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.map-chapter .act-title{margin:0;font-size:9px;letter-spacing:1.6px;color:var(--rune-gold)}
+.map-chapter-stars{font-size:10px;color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.map-chapter-bar{height:2px;background:var(--border);margin:8px 0 10px}
+.map-chapter-bar i{display:block;height:100%;background:var(--rune-gold);transition:width .5s}
+.map-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mission-card{display:flex;flex-direction:column;text-align:left;padding:0;min-width:0;background:var(--dark);border:1px solid var(--border);border-radius:4px;overflow:hidden;position:relative;transition:border-color .2s,transform .2s,box-shadow .2s}
+.mission-card:hover{border-color:var(--text-muted);transform:translateY(-2px)}
+.mission-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mission-card.selected{border-color:var(--rune-gold);box-shadow:0 0 0 1px var(--rune-gold),0 10px 24px #0007}
+.mission-card.next-up{border-color:#b9e8cf88}
+.card-map{position:relative;display:block;aspect-ratio:1084/560;background:radial-gradient(circle at 50% 35%,#f6d79a22,transparent 70%),#0a1519;border-bottom:1px solid var(--border)}
+.card-map svg{display:block;width:100%;height:100%}
+.card-map .rail{fill:#4b2c20;stroke:#d9b77766;stroke-width:4}
+.card-map .rune-line{stroke:#ffffff14;stroke-width:3;fill:none}
+.card-map .pockets circle{fill:#050b0d}
+.card-map .pockets .called{fill:#050b0d;stroke:var(--rune-gold);stroke-width:9}
+.card-map .balls circle{stroke:#0006;stroke-width:3}
+.card-map .balls .eight{stroke:#eeeade88}
+.mission-card:not(.cleared):not(.selected):not(.next-up) .card-map svg{opacity:.72}
+.card-number{display:block;font-size:10px;letter-spacing:1.4px;color:var(--text-muted);margin-bottom:3px}
+.mission-card.selected .card-number,.next-up .card-number{color:var(--rune-gold)}
+.card-seal{position:absolute;right:6px;top:5px;width:22px;height:22px;display:grid;place-items:center;font-size:12px;color:var(--rune-gold);background:#091419d9;border:1px solid var(--rune-gold);border-radius:50%}
+.card-body{display:flex;flex-direction:column;gap:4px;padding:9px 10px 10px;min-width:0;flex:1}
+.card-title{font:15px/1.2 Georgia,serif;color:var(--text)}
+.card-rule{font-size:10px;line-height:1.35;color:var(--text-muted)}
+.card-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:auto;padding-top:4px}
+.card-stars{display:flex;gap:3px;font-size:14px;line-height:1}
+.card-stars i{font-style:normal;color:var(--border)}
+.card-stars i.earned{color:var(--rune-gold);text-shadow:0 0 8px #d9b77766}
+.card-best{font-size:10px;color:var(--text-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.next-up .card-best{color:var(--accent)}
+.effects-off .mission-card,.effects-off .map-chapter-bar i{transition:none}
+@media(prefers-reduced-motion:reduce){.mission-card{transition:none}.mission-card:hover{transform:none}}
+@media(max-width:520px){.map-cards{gap:7px}.card-body{padding:7px 7px 8px;gap:3px}.card-title{font-size:13px}.card-rule{font-size:10px}.card-foot{flex-direction:column;align-items:flex-start;gap:3px}.card-stars{font-size:13px}.card-seal{width:19px;height:19px;font-size:10px;right:4px;top:4px}.map-chapter{margin-top:15px}}

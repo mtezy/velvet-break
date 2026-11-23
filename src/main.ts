@@ -1,5 +1,6 @@
 import { og } from '@opengamehq/sdk';
 import { missions, practiceLayout } from './missions.ts';
+import { missionCardsHtml } from './mission-cards.ts';
 import { TABLE, POCKETS, BALL_COLORS, clampSpin, type Spin } from './physics.ts';
 import { Session } from './session.ts';
 import { type Particle } from './render.ts';
@@ -127,12 +128,8 @@ function currentTip(){
   return challengeDay===undefined?`${m.tip} Finish in ${m.par} ${m.par===1?'shot':'shots'} or fewer for 3 stars.`:m.tip;
 }
 function renderMissions(){
-  let act=0;const campaign=!practice&&challengeDay===undefined;
-  $('missions').innerHTML=missions.map((m,i)=>{
-    const heading=m.act!==act?`<p class="act-title">0${m.act} / ${m.chapter.toUpperCase()}</p>`:'';act=m.act;
-    const record=records[i];
-    return heading+`<button class="mission-button ${i===index&&campaign?'selected':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}${record?`, ${record.stars} of 3 stars`:''}" ${i===index&&campaign?'aria-current="true"':''}><span class="mission-index">${record?runeIcon('verified'):String(i+1).padStart(2,'0')}</span><span><span class="mission-name">${m.title}</span><span class="mission-stars ${record?'earned':''}">${runeStars(record?.stars??0)}</span></span>${i===index&&campaign?`<span class="mission-arrow">${runeIcon('forward')}</span>`:''}</button>`;
-  }).join('');
+  const campaign=!practice&&challengeDay===undefined;
+  $('missions').innerHTML=missionCardsHtml(missions,records,campaign?index:null);
   const completed=records.filter(Boolean).length;const stars=records.reduce((n,r)=>n+(r?.stars??0),0);
   $('mission-count').textContent=`${completed} / 12`;$('total-stars').textContent=String(stars);$('campaign-progress').style.width=`${completed/12*100}%`;
 }
