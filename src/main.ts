@@ -363,8 +363,6 @@ replayDialog.addEventListener('cancel',e=>{e.preventDefault();stopReplay();});
 window.addEventListener('keydown',e=>{
   if(onboarding.open)return;
   if(replay||e.code===skipKey){e.preventDefault();skipKey=e.code;stopReplay();return;}
-  // Results own native keyboard scrolling; keep R available for a quick retry.
-  if(!$('result-overlay').classList.contains('hidden')&&e.code!=='KeyR')return;
   if(e.code==='Escape'&&viewOptions.matches(':popover-open'))return;
   // Escape exits the editor even while a range or text input owns focus.
   if(e.code==='Escape'&&!guide.open&&!pauseDialog.open&&!dailyDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
@@ -372,6 +370,8 @@ window.addEventListener('keydown',e=>{
   if((e.target as HTMLElement).closest('button,summary')&&['Space','Enter'].includes(e.code))return;
   if(guide.open||pauseDialog.open||cpuDialog.open||dailyDialog.open){if(e.code==='KeyP'&&pauseDialog.open)setPause(false);return;}
   if(titleOpen){if(e.code==='Enter')setTitle(false);return;}
+  // Let results scroll natively without stealing Escape, title or pause shortcuts.
+  if(!$('result-overlay').classList.contains('hidden')&&['Space','ArrowUp','ArrowDown'].includes(e.code))return;
   if(['KeyW','KeyS','KeyA','KeyD','KeyC'].includes(e.code)){e.preventDefault();if(canShoot()&&!paused&&!hostPaused)setSpin(e.code==='KeyC'?{x:0,y:0}:{x:spin.x+(e.code==='KeyD'?.1:e.code==='KeyA'?-.1:0),y:spin.y+(e.code==='KeyW'?.1:e.code==='KeyS'?-.1:0)});return;}
   if(['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();
   keys.add(e.code);
