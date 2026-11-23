@@ -16,6 +16,7 @@ import { seededRandom, type CpuDifficulty } from './cpu.ts';
 import { setupOnboarding } from './onboarding.ts';
 import { CAMPAIGN_STORAGE_KEY, bestMissionRecord, readCampaignProgress, type MissionRecord } from './campaign-progress.ts';
 import { DailyLeaderboard, dailyBoardKey, dailyDate, dailyDay, dailyMission, dailyScore } from './daily.ts';
+import { ShotRecorder, type ReplayClip } from './shot-replay.ts';
 import manifest from '../opengame.json';
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
@@ -36,6 +37,22 @@ let index=0,practice=false,challengeDay:number|undefined,session=new Session(mis
 let paused=false,hostPaused=false,lastFrame=performance.now(),accumulator=0,outcomeShown=false,particles:Particle[]=[],floatTimeout=0;
 let pointerId:number|null=null,shotAngle=angle,keys=new Set<string>();
 const fixedStep=1/240;
+const replayRecorder=new ShotRecorder(fixedStep),replayDialog=$<HTMLDialogElement>('shot-replay');
+const replayToggle=$<HTMLButtonElement>('replay-toggle'),replayPreference='velvet-break-shot-replay-v1';
+let replayEnabled=!matchMedia('(prefers-reduced-motion: reduce)').matches;
+try{const value=localStorage.getItem(replayPreference);if(value!==null)replayEnabled=value==='on';}catch{}
+let replay:ReplayClip|undefined,replayStarted=0,skipKey='';
+function updateReplayToggle(){
+  replayToggle.textContent=replayEnabled?'Replay on':'Replay off';
+  replayToggle.setAttribute('aria-pressed',String(replayEnabled));
+}
+updateReplayToggle();
+replayToggle.addEventListener('click',()=>{
+  replayEnabled=!replayEnabled;
+  if(!replayEnabled)replayRecorder.discard();
+  try{localStorage.setItem(replayPreference,replayEnabled?'on':'off');}catch{}
+  updateReplayToggle();
+});
 let lastHud='',onlineResultShown=false;
 let titleOpen=true,shotPotCount=0;const titleBalls=practiceLayout();
 let spin:Spin={x:0,y:0};
@@ -58,6 +75,7 @@ const versusMatch=()=>offline?.match??(online?.active?online.match:null);
 const canChooseRule=()=>!titleOpen&&!paused&&!hostPaused&&!renderer.cueInspection&&(offline?offline.match.turn===0:!!online?.canChooseRule);
 const canShoot=()=>!titleOpen&&!renderer.cueInspection&&(offline?offline.canShoot:online?.active?online.canShoot:session.canShoot);
 function startOffline(){
+  replayRecorder.discard();
   if(online?.active)online.leave();cancelCharge();paused=false;hostPaused=false;
   setTitle(false);cameraRig.close();cueLocker.inspect(false);
   if(pauseDialog.open)pauseDialog.close();cpuDialog.close();
@@ -77,6 +95,7 @@ function setTitle(value:boolean){
 }
 function shotEffect(value:number){
   shotPotCount=0;
+  if(replayEnabled&&!online?.active)replayRecorder.start(currentBalls());
   audio.shot(value);const cue=currentBalls()[0];renderer.pulse(cue.x,cue.y,room.selected.trim,35+value*45,.45);
   if(renderer.effects){const card=document.querySelector('.table-card')!;card.classList.remove('portal-flash');requestAnimationFrame(()=>card.classList.add('portal-flash'));}
 }
@@ -111,6 +130,7 @@ function renderMissions(){
   $('mission-count').textContent=`${completed} / 12`;$('total-stars').textContent=String(stars);$('campaign-progress').style.width=`${completed/12*100}%`;
 }
 function loadMission(next:number,free=false,day?:number){
+  replayRecorder.discard();
   cameraRig.close();cueLocker.inspect(false);
   document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;
   offline=undefined;$('cpu-nav').classList.remove('active');
@@ -222,7 +242,7 @@ function showResult(){
   else if(!won)og.track('mission_failed',{mission:index+1});
   updateHud();
 }
-function setPause(value:boolean){if(titleOpen)return;if(online?.active){if(value)toast('Online duels cannot be paused. Keep the host tab visible.');return;}paused=value;cancelCharge();if(value&&!pauseDialog.open)pauseDialog.showModal();if(!value&&pauseDialog.open)pauseDialog.close();updateHud();}
+function setPause(value:boolean){if(titleOpen)return;if(online?.active){if(value)toast('Online duels cannot be paused. Keep the host tab visible.');return;}paused=value;cancelCharge();if(value){stopReplay();if(!pauseDialog.open)pauseDialog.showModal();}if(!value&&pauseDialog.open)pauseDialog.close();updateHud();}
 let dailyView=0;
 async function openDaily(){
   cancelCharge();keys.clear();
@@ -295,7 +315,7 @@ $('title-daily').addEventListener('click',()=>void openDaily());
 $('daily-close').addEventListener('click',()=>dailyDialog.close());
 $('daily-play').addEventListener('click',startDaily);
 $('practice-nav').addEventListener('click',()=>loadMission(index,true));
-$('online-nav').addEventListener('click',()=>{offline=undefined;$('cpu-nav').classList.remove('active');cameraRig.close();cueLocker.inspect(false);cancelCharge();paused=false;hostPaused=false;if(pauseDialog.open)pauseDialog.close();document.body.classList.toggle('lobby-expanded');document.body.classList.remove('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;online?.enter();});
+$('online-nav').addEventListener('click',()=>{replayRecorder.discard();offline=undefined;$('cpu-nav').classList.remove('active');cameraRig.close();cueLocker.inspect(false);cancelCharge();paused=false;hostPaused=false;if(pauseDialog.open)pauseDialog.close();document.body.classList.toggle('lobby-expanded');document.body.classList.remove('missions-open');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;online?.enter();});
 $('vault-button').addEventListener('click',()=>{const vault=document.querySelector<HTMLDetailsElement>('.table-room')!;vault.open=!vault.open;cameraRig.close();document.body.classList.remove('missions-open','lobby-expanded');});
 $('menu-button').addEventListener('click',()=>setTitle(true));
 $('title-play').addEventListener('click',()=>setTitle(false));
@@ -310,8 +330,22 @@ $('sound-button').addEventListener('click',()=>{const enabled=audio.toggle();$('
 $('fullscreen-button').addEventListener('click',()=>{if(og.env.embedded&&og.env.connected){og.fullscreen.request();}else if(document.fullscreenElement){void document.exitFullscreen().catch(()=>{});}else{void document.documentElement.requestFullscreen().catch(()=>toast('Fullscreen is not available in this preview.'));}});
 $('resume-button').addEventListener('click',()=>setPause(false));
 pauseDialog.addEventListener('cancel',e=>{e.preventDefault();setPause(false);});
+function startReplay(clip:ReplayClip,now:number){
+  cancelCharge();keys.clear();
+  replay=clip;replayStarted=now;
+  $('shot-replay-kind').textContent=clip.highlight.kind;
+  $('floating-message').classList.remove('visible');
+  replayDialog.showModal();
+}
+function stopReplay(){
+  if(!replay)return;
+  replay=undefined;replayDialog.close();
+}
+replayDialog.addEventListener('click',stopReplay);
+replayDialog.addEventListener('cancel',e=>{e.preventDefault();stopReplay();});
 window.addEventListener('keydown',e=>{
   if(onboarding.open)return;
+  if(replay||e.code===skipKey){e.preventDefault();skipKey=e.code;stopReplay();return;}
   // Escape exits the editor even while a range or text input owns focus.
   if(e.code==='Escape'&&!guide.open&&!pauseDialog.open&&!dailyDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
   if((e.target as HTMLElement).matches('input,textarea,select'))return;
@@ -326,26 +360,47 @@ window.addEventListener('keydown',e=>{
   if(e.code==='KeyR'&&!online?.active)restartCurrent();
   if(e.code==='KeyP')setPause(!paused);
 });
-window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')finishCharge();});
-window.addEventListener('blur',()=>{cancelCharge();keys.clear();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelCharge();keys.clear();if(offline||(session.started&&session.outcome==='playing'))setPause(true);}});
+window.addEventListener('keyup',e=>{if(e.code===skipKey){skipKey='';return;}keys.delete(e.code);if(e.code==='Space')finishCharge();});
+window.addEventListener('blur',()=>{cancelCharge();keys.clear();skipKey='';});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelCharge();keys.clear();stopReplay();if(offline||(session.started&&session.outcome==='playing'))setPause(true);}});
 new ResizeObserver(()=>renderer.resize()).observe(canvas);
 function frame(now:number){
   const realElapsed=Math.max(0,(now-lastFrame)/1000),elapsed=Math.min(realElapsed,.25);lastFrame=now;
-  if(online?.active||(!titleOpen&&!paused&&!hostPaused&&!guide.open&&!pauseDialog.open&&!cpuDialog.open&&!dailyDialog.open)){
+  if(replay&&(now-replayStarted)/1000>=replay.duration)stopReplay();
+  if(!replay&&(online?.active||(!titleOpen&&!paused&&!hostPaused&&!guide.open&&!pauseDialog.open&&!cpuDialog.open&&!dailyDialog.open))){
     if(canShoot()&&!charging&&!guide.open){const speed=(keys.has('ShiftLeft')||keys.has('ShiftRight'))?.16:.8;if(keys.has('ArrowLeft'))angle-=elapsed*speed;if(keys.has('ArrowRight'))angle+=elapsed*speed;if(keys.has('ArrowUp'))power=Math.min(1,power+elapsed*.3);if(keys.has('ArrowDown'))power=Math.max(.1,power-elapsed*.3);}
     if(charging){power=Math.min(1,.1+(now-chargeStarted)/1400*.9);powerInput.value=String(Math.round(power*100));}
-    if(!online?.active&&!offline)session.advanceClock(realElapsed);
+    if(!online?.active&&!offline){
+      session.advanceClock(realElapsed);
+      if(session.outcome!=='playing')replayRecorder.discard();
+    }
     accumulator+=elapsed;
     offline?.advance(elapsed);
-    while(accumulator>=fixedStep){handleEvents(offline?offline.match.tick(fixedStep):online?.active?online.tick(fixedStep):session.tick(fixedStep,false));accumulator-=fixedStep;}
+    const localMatch=online?.active?undefined:offline?.match??session;
+    while(accumulator>=fixedStep){
+      const recording=replayEnabled&&localMatch?.inShot;
+      const events=offline?offline.match.tick(fixedStep):online?.active?online.tick(fixedStep):session.tick(fixedStep,false);
+      handleEvents(events);accumulator-=fixedStep;
+      if(recording&&localMatch){
+        replayRecorder.capture(localMatch.balls,events);
+        if(!localMatch.inShot){
+          const clip=replayRecorder.finish();
+          if(clip){startReplay(clip,now);accumulator=0;break;}
+        }
+      }
+    }
     for(const b of currentBalls()){if(Math.hypot(b.vx,b.vy)>40){b.trail.push({x:b.x,y:b.y});if(b.trail.length>9)b.trail.shift();}else b.trail.shift();}
     for(const p of particles){p.x+=p.vx*elapsed;p.y+=p.vy*elapsed;p.life-=elapsed*1.6;}particles=particles.filter(p=>p.life>0);
-    if(!offline&&!online?.active&&session.outcome!=='playing')showResult();
+    if(!replay&&!offline&&!online?.active&&session.outcome!=='playing')showResult();
     if(online?.active&&online.match&&online.match.winner!==null&&!onlineResultShown){
       onlineResultShown=true;const won=online.match.winner===online.player;
       $('result-kicker').textContent='THE DUEL IS SEALED';$('result-title').textContent=won?'You forged a victory.':'A worthy rival.';$('result-description').textContent=online.match.reason;$('result-stars').textContent='ᛟ';$('next-mission').textContent='Request rematch';$('result-retry').textContent='Leave for campaign';$('result-overlay').classList.remove('hidden');$('result-overlay').classList.toggle('rune-victory',won);if(won)audio.win();
     }
+  }
+  if(replay){
+    replay.seek((now-replayStarted)/1000);
+    renderer.render({balls:replay.balls,angle:0,power:0,charge:0,aiming:false,particles:[],time:now},replay.focus);
+    requestAnimationFrame(frame);return;
   }
   const cpuAiming=!titleOpen&&!renderer.cueInspection&&!!offline&&offline.phase==='aiming'&&!offline.match.inShot&&offline.match.turn===1;
   const match=versusMatch();
@@ -360,4 +415,4 @@ if(new URLSearchParams(location.search).has('room')){setTitle(false);online.ente
 else setupOnboarding(onboarding,$('title-play'));
 requestAnimationFrame(frame);
 // Platform handshake never blocks the first frame or standalone play.
-const platformReady=og.init({manifest}).then(()=>{og.ready();og.onPause(value=>{hostPaused=value;cancelCharge();});og.audio.onHostMute(value=>{audio.hostMuted=value;});}).catch(()=>{});
+const platformReady=og.init({manifest}).then(()=>{og.ready();og.onPause(value=>{hostPaused=value;cancelCharge();if(value)stopReplay();});og.audio.onHostMute(value=>{audio.hostMuted=value;});}).catch(()=>{});
