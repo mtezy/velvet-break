@@ -9,6 +9,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DEFAULT_CAMERA, type CameraSettings } from './camera-settings.ts';
 import { buildCueModel } from './cue-model.ts';
 import { getCueDesign, type CueDesign } from './cues.ts';
+import { contactShadow } from './surfaces.ts';
 
 /** The game uses a true 3D table and rolling spheres; a Canvas fallback keeps it playable without WebGL. */
 export class PoolRenderer {
@@ -19,9 +20,11 @@ export class PoolRenderer {
   cueDesign=getCueDesign(null);cueDisplay=new THREE.Group();cueInspection=false;cueSpin=0;
   pulses:{mesh:THREE.Mesh;age:number;duration:number;radius:number}[]=[];
   raycaster=new THREE.Raycaster();plane=new THREE.Plane(new THREE.Vector3(0,1,0),-12);
-  balls=new Map<number,{mesh:THREE.Mesh;shadow:THREE.Mesh;lastX:number;lastY:number}>();
+  balls=new Map<number,{mesh:THREE.Mesh;shadow:THREE.Mesh;label:THREE.Sprite;lastX:number;lastY:number}>();
+  labels=true;
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
+  shadowMap=contactShadow();
   clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
   cuePath=new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(241*2*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(241*2*4),4)).setIndex(Array.from({length:240},(_,i)=>[i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2]).flat()),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
   cueStop=new THREE.Mesh(new THREE.RingGeometry(4,6,32),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:.95,depthTest:false,depthWrite:false}));
@@ -38,26 +41,25 @@ export class PoolRenderer {
     const gl=this.renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');this.software=!!debug&&/swiftshader|llvmpipe|software/i.test(String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)));
     // Contact shadows keep the 3D depth without a costly full-scene shadow pass.
     this.renderScale=this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer.setPixelRatio(this.renderScale);this.renderer.shadowMap.enabled=false;
-    this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.1;
-    this.scene.background=new THREE.Color('#111c20');this.scene.fog=new THREE.FogExp2('#111c20',.00024);
+    this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.0;
+    this.scene.background=new THREE.Color('#080f13');this.scene.fog=new THREE.FogExp2('#080f13',.00038);
     this.controls=new OrbitControls(this.camera,canvas);this.controls.target.set(0,-80,0);
-    this.controls.enablePan=false;this.controls.minDistance=1050;this.controls.maxDistance=8000;
+    this.controls.enablePan=true;this.controls.screenSpacePanning=false;this.controls.minDistance=1100;this.controls.maxDistance=8000;
     this.controls.minPolarAngle=.12;this.controls.maxPolarAngle=Math.PI*.39;
-    this.controls.mouseButtons={LEFT:null,MIDDLE:null,RIGHT:THREE.MOUSE.ROTATE};this.controls.touches={ONE:null,TWO:null};
-    this.controls.addEventListener('change',()=>this.dirty=true);this.setView('club');
-    this.scene.add(new THREE.HemisphereLight(0xbed7df,0x62452c,1.35));
-    const key=new THREE.DirectionalLight(0xffddaa,2.8);key.position.set(-260,900,200);this.scene.add(key);
-    const practical=new THREE.PointLight(0xffd399,1.0,2300,0);practical.position.set(0,480,0);this.scene.add(practical);
+    this.controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};this.controls.touches={ONE:null,TWO:null};
+    this.controls.addEventListener('change',()=>{const t=this.controls!.target,x=THREE.MathUtils.clamp(t.x,-400,400),z=THREE.MathUtils.clamp(t.z,-300,300);this.camera.position.x+=x-t.x;this.camera.position.z+=z-t.z;t.x=x;t.z=z;this.dirty=true;});this.setView('club');
+    this.scene.add(new THREE.HemisphereLight(0xc5e2ed,0x171712,.7));
+    const key=new THREE.DirectionalLight(0xfff4df,2.1);key.position.set(-350,1100,350);this.scene.add(key);
+    const fill=new THREE.DirectionalLight(0xa0d5ed,.65);fill.position.set(600,450,-600);this.scene.add(fill);
+    const practical=new THREE.PointLight(0xffd399,.35,2100,0);practical.position.set(0,480,0);this.scene.add(practical);
     this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
     this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath,this.cueStop);
     this.cuePath.renderOrder=20;this.cueStop.renderOrder=21;this.cueStop.rotation.x=-Math.PI/2;
     this.ghost.rotation.x=this.targetRing.rotation.x=this.calledRing.rotation.x=-Math.PI/2;
     this.buildCue();
-    // A small procedural studio reflection gives enamel balls curved highlights.
-    const envCanvas=document.createElement('canvas');envCanvas.width=256;envCanvas.height=128;const ec=envCanvas.getContext('2d')!;
-    ec.fillStyle='#262620';ec.fillRect(0,0,256,128);ec.fillStyle='#fff1ce';ec.fillRect(26,18,115,10);ec.fillRect(180,24,38,6);ec.fillStyle='#bedde5';ec.fillRect(12,40,15,30);ec.fillRect(150,35,16,30);ec.fillStyle='#5f4230';ec.fillRect(0,78,256,50);
-    const environment=new THREE.CanvasTexture(envCanvas);environment.mapping=THREE.EquirectangularReflectionMapping;environment.colorSpace=THREE.SRGBColorSpace;this.scene.environment=environment;this.scene.environmentIntensity=.75;
-    if(!this.software){const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.04).texture;this.scene.environmentIntensity=.45;studio.dispose();pmrem.dispose();environment.dispose();}
+    // Pre-filter once, including software GPUs: standard enamel needs a real
+    // radiance map too. This is not a live reflection or an extra frame pass.
+    const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.025).texture;this.scene.environmentIntensity=.4;studio.dispose();pmrem.dispose();
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
     this.resize();
   }
@@ -68,11 +70,11 @@ export class PoolRenderer {
     this.scene.remove(this.tableModel);disposeTableModel(this.tableModel);this.tableModel=buildTableModel(design,!this.software);this.scene.add(this.tableModel);
   }
   setView(view:'club'|'overhead'|'custom'){
-    if(view==='custom'){this.view=view;const p=this.customCamera,az=p.azimuth*Math.PI/180,el=p.elevation*Math.PI/180,fit=Math.max(1,1.5/Math.max(.45,this.camera.aspect)),distance=p.distance*Math.max(1,fit*.82);this.camera.position.set(Math.sin(az)*Math.cos(el)*distance,Math.sin(el)*distance-80,Math.cos(az)*Math.cos(el)*distance);this.controls?.target.set(0,-80,0);this.camera.lookAt(0,-80,0);this.controls?.update();this.dirty=true;return;}
-    this.view=view;const fit=Math.max(1,1.5/Math.max(.45,this.camera.aspect));this.camera.position.copy(view==='club'?new THREE.Vector3(330,740,1390).multiplyScalar(Math.max(1,fit*.82)):new THREE.Vector3(0,1450*fit,90));
-    this.controls?.target.set(0,view==='club'?-80:0,0);this.camera.lookAt(this.controls?.target??new THREE.Vector3());this.controls?.update();this.dirty=true;
+    if(view==='custom'){this.view=view;const p=this.customCamera,az=p.azimuth*Math.PI/180,el=Math.min(89.999,p.elevation)*Math.PI/180,fit=Math.max(1,1.55/Math.max(.35,this.camera.aspect)),distance=p.distance*fit,x=p.targetX??0,z=p.targetZ??0;if(this.controls)this.controls.minPolarAngle=.00001;this.camera.position.set(x+Math.sin(az)*Math.cos(el)*distance,Math.sin(el)*distance,z+Math.cos(az)*Math.cos(el)*distance);this.controls?.target.set(x,0,z);this.camera.lookAt(x,0,z);this.controls?.update();this.dirty=true;return;}
+    this.view=view;if(this.controls)this.controls.minPolarAngle=view==='overhead'?.00001:.12;const fit=Math.max(1,1.55/Math.max(.35,this.camera.aspect));this.camera.position.copy(view==='club'?new THREE.Vector3(75,1050,820).multiplyScalar(fit):new THREE.Vector3(0,1340*fit,.1));
+    this.controls?.target.set(0,0,0);this.camera.lookAt(this.controls?.target??new THREE.Vector3());this.controls?.update();this.dirty=true;
   }
-  cameraSettings():CameraSettings{const offset=this.camera.position.clone().sub(this.controls?.target??new THREE.Vector3(0,-80,0)),distance=offset.length(),fit=Math.max(1,Math.max(1,1.5/Math.max(.45,this.camera.aspect))*.82);return{azimuth:Math.atan2(offset.x,offset.z)*180/Math.PI,elevation:Math.max(25,Math.min(82,Math.asin(offset.y/distance)*180/Math.PI)),distance:Math.max(1100,Math.min(2600,distance/fit))};}
+  cameraSettings():CameraSettings{const target=this.controls?.target??new THREE.Vector3(),offset=this.camera.position.clone().sub(target),distance=offset.length(),fit=Math.max(1,1.55/Math.max(.35,this.camera.aspect));return{azimuth:Math.atan2(offset.x,offset.z)*180/Math.PI,elevation:Math.max(25,Math.min(90,Math.asin(offset.y/distance)*180/Math.PI)),distance:Math.max(1100,Math.min(2600,distance/fit)),targetX:THREE.MathUtils.clamp(target.x,-400,400),targetZ:THREE.MathUtils.clamp(target.z,-300,300)};}
   setTitleMode(value:boolean){this.titleMode=value;if(this.controls)this.controls.enabled=!value;if(value){this.camera.position.set(1100,420,1390);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;}
   setQuality(value:'auto'|'high'|'economy'){
     this.quality=value;this.renderScale=value==='economy'?.6:value==='high'?Math.min(window.devicePixelRatio,1.5):this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer?.setPixelRatio(this.renderScale);this.dirty=true;
@@ -93,10 +95,12 @@ export class PoolRenderer {
     if(id!==0)for(const cx of [128,384]){c.beginPath();c.arc(cx,128,39,0,Math.PI*2);c.fillStyle='#fff8e7';c.fill();c.lineWidth=2;c.strokeStyle='#29263833';c.stroke();c.font='bold 48px Arial';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#18202c';c.fillText(String(id),cx,131);}
     else for(const cx of [64,192,320,448]){c.beginPath();c.arc(cx,128,5,0,Math.PI*2);c.fillStyle='#b6353e';c.fill();}
     const map=new THREE.CanvasTexture(mapCanvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=Math.min(4,this.renderer!.capabilities.getMaxAnisotropy());
-    const material=this.software?new THREE.MeshStandardMaterial({map,roughness:.17,metalness:.02,envMapIntensity:1.3}):new THREE.MeshPhysicalMaterial({map,roughness:.19,metalness:0,envMapIntensity:1.4,clearcoat:1,clearcoatRoughness:.08});
-    const mesh=new THREE.Mesh(new THREE.SphereGeometry(TABLE.radius,32,24),material);mesh.position.set(x-600,12,y-330);mesh.rotation.z=Math.PI/2;mesh.rotation.y=.4;this.scene.add(mesh);
-    const shadow=new THREE.Mesh(new THREE.CircleGeometry(13,24),new THREE.MeshBasicMaterial({color:0x020c09,transparent:true,opacity:.24,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.scale.y=.85;shadow.position.set(x-599,.4,y-328);this.scene.add(shadow);
-    const record={mesh,shadow,lastX:x,lastY:y};this.balls.set(id,record);return record;
+    const material=this.software?new THREE.MeshStandardMaterial({map,roughness:.13,metalness:0,envMapIntensity:1.1}):new THREE.MeshPhysicalMaterial({map,roughness:.16,metalness:0,envMapIntensity:1,clearcoat:1,clearcoatRoughness:.06});
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(TABLE.radius,32,24),material);mesh.position.set(x-600,12,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;this.scene.add(mesh);
+    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(42,42),new THREE.MeshBasicMaterial({map:this.shadowMap,transparent:true,opacity:.82,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.set(x-599,.4,y-328);this.scene.add(shadow);
+    const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;const lc=labelCanvas.getContext('2d')!;lc.fillStyle='#fffff2';lc.beginPath();lc.arc(64,64,60,0,Math.PI*2);lc.fill();lc.fillStyle='#101820';lc.textAlign='center';lc.textBaseline='middle';lc.font=`900 ${id>9?74:88}px Arial`;lc.fillText(String(id),64,68);const labelMap=new THREE.CanvasTexture(labelCanvas);labelMap.colorSpace=THREE.SRGBColorSpace;
+    const label=new THREE.Sprite(new THREE.SpriteMaterial({map:labelMap,transparent:true,depthWrite:false,toneMapped:false}));label.scale.set(13.5,13.5,1);label.renderOrder=2;this.scene.add(label);
+    const record={mesh,shadow,label,lastX:x,lastY:y};this.balls.set(id,record);return record;
   }
   resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight||w*780/1200;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}}
   pointer(clientX:number,clientY:number){
@@ -113,13 +117,15 @@ export class PoolRenderer {
     this.lastRenderKey=renderKey;this.dirty=false;
     const isMoving=state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
     if(this.quality==='auto'&&isMoving){this.averageFrame=this.averageFrame*.9+dt*.1;if(++this.qualityFrames%24===0&&this.averageFrame>.055&&this.renderScale>.48){this.renderScale=Math.max(.48,this.renderScale*.86);this.renderer.setPixelRatio(this.renderScale);}}
-    const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode||(this.view!=='overhead'&&this.camera.position.y/this.camera.position.length()<.86);
+    const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode;
     for(const pulse of [...this.pulses]){pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));
-    for(const [id,record]of this.balls){record.mesh.visible=false;record.shadow.visible=false;if(!ids.has(id)){this.scene.remove(record.mesh,record.shadow);record.mesh.geometry.dispose();(record.mesh.material as THREE.MeshStandardMaterial).map?.dispose();(record.mesh.material as THREE.Material).dispose();record.shadow.geometry.dispose();(record.shadow.material as THREE.Material).dispose();this.balls.delete(id);}}
+    for(const [id,record]of this.balls){record.mesh.visible=false;record.shadow.visible=false;record.label.visible=false;if(!ids.has(id)){this.scene.remove(record.mesh,record.shadow,record.label);record.mesh.geometry.dispose();(record.mesh.material as THREE.MeshStandardMaterial).map?.dispose();(record.mesh.material as THREE.Material).dispose();record.shadow.geometry.dispose();(record.shadow.material as THREE.Material).dispose();record.label.material.map?.dispose();record.label.material.dispose();this.balls.delete(id);}}
     for(const b of state.balls){let rec=this.balls.get(b.id);if(!rec)rec=this.createBall(b.id,b.x,b.y);rec.mesh.visible=b.active;rec.shadow.visible=b.active;
       const dx=b.x-rec.lastX,dz=b.y-rec.lastY,d=Math.hypot(dx,dz);if(d>0&&d<100){const axis=new THREE.Vector3(dz,0,-dx).normalize();rec.mesh.rotateOnWorldAxis(axis,d/TABLE.radius);}rec.lastX=b.x;rec.lastY=b.y;
       rec.mesh.position.set(b.x-600,12,b.y-330);rec.shadow.position.set(b.x-599,.4,b.y-328);
+      rec.label.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&!this.cueInspection&&Math.hypot(b.vx,b.vy)<10;
+      if(rec.label.visible)rec.label.position.copy(rec.mesh.position).add(this.camera.position.clone().sub(rec.mesh.position).normalize().multiplyScalar(12.6));
     }
     this.cueDisplay.visible=this.cueInspection&&!this.titleMode;
     if(this.cueDisplay.visible){const direction=this.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);this.cueDisplay.position.copy(this.camera.position).addScaledVector(direction,900).addScaledVector(right,130).addScaledVector(up,this.camera.aspect<.8?95:10);this.cueDisplay.quaternion.copy(this.camera.quaternion);this.cueDisplay.rotateZ(-.12);this.cueDisplay.rotateY(this.cueSpin);this.cueDisplay.scale.setScalar(Math.min(1.2,this.camera.aspect*1.25));}
@@ -140,7 +146,7 @@ export class PoolRenderer {
       }
       if(path.length&&Math.hypot(path.at(-1)!.x-path[0].x,path.at(-1)!.y-path[0].y)<3){this.cueStop.visible=true;this.cueStop.position.set(path[0].x-600,15,path[0].y-330);}
       if(trace.target){const t=trace.target,a=Math.atan2(t.y-trace.y,t.x-trace.x);this.targetRing.visible=this.targetLine.visible=true;this.targetRing.position.set(t.x-600,15,t.y-330);this.line(this.targetLine,t,{x:t.x+Math.cos(a)*95,y:t.y+Math.sin(a)*95});}
-      const pull=state.charge?state.power*70:0;this.cue.position.set(cue.x-600-Math.cos(state.angle)*(28+pull),17,cue.y-330-Math.sin(state.angle)*(28+pull));this.cue.rotation.y=-state.angle;
+      const pull=state.charge?state.power*70:0;this.cue.position.set(cue.x-600-Math.cos(state.angle)*(28+pull),17,cue.y-330-Math.sin(state.angle)*(28+pull));this.cue.rotation.set(0,-state.angle,-.03);
     }
     this.calledRing.visible=state.targetPocket!==undefined;if(state.targetPocket!==undefined){const p=POCKETS[state.targetPocket];this.calledRing.position.set(p.x-600,17,p.y-330);this.calledRing.scale.setScalar(1+Math.sin(state.time*.003)*.025);}
     const positions:number[]=[],colors:number[]=[];for(const p of state.particles){positions.push(p.x-600,15+(1-p.life)*35,p.y-330);const c=new THREE.Color(p.color);colors.push(c.r*p.life,c.g*p.life,c.b*p.life);}

@@ -17,6 +17,9 @@ export class TableRoom {
     try{const stored=localStorage.getItem('velvet-break-fx-v1');if(stored!==null)effects=stored==='on'&&!reduced;}catch{}
     const updateEffects=()=>{renderer.effects=effects;element('effects-button').setAttribute('aria-pressed',String(effects));element('effects-button').textContent=effects?'Effects on':'Effects off';document.body.classList.toggle('effects-off',!effects);};
     updateEffects();element('effects-button').addEventListener('click',()=>{effects=!effects;updateEffects();try{localStorage.setItem('velvet-break-fx-v1',effects?'on':'off');}catch{}});
+    try{renderer.labels=localStorage.getItem('velvet-break-labels-v1')!=='off';}catch{}
+    const updateLabels=()=>{renderer.dirty=true;element('labels-button').setAttribute('aria-pressed',String(renderer.labels));element('labels-button').textContent=renderer.labels?'Numbers on':'Numbers off';};updateLabels();
+    element('labels-button').addEventListener('click',()=>{renderer.labels=!renderer.labels;updateLabels();try{localStorage.setItem('velvet-break-labels-v1',renderer.labels?'on':'off');}catch{}});
     let quality:'auto'|'high'|'economy'='auto';try{const saved=localStorage.getItem('velvet-break-quality-v1');if(saved==='high'||saved==='economy')quality=saved;}catch{}
     const updateQuality=()=>{renderer.setQuality(quality);element('quality-button').textContent=`Quality: ${quality[0].toUpperCase()+quality.slice(1)}`;element('quality-button').setAttribute('aria-label',`Rendering quality ${quality}. Click to change.`);};updateQuality();
     element('quality-button').addEventListener('click',()=>{quality=quality==='auto'?'high':quality==='high'?'economy':'auto';updateQuality();try{localStorage.setItem('velvet-break-quality-v1',quality);}catch{}});

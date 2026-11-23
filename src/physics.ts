@@ -4,7 +4,7 @@ export const POCKETS = [
   { x: 1110, y: 90, name: 'top-right' }, { x: 90, y: 570, name: 'bottom-left' },
   { x: 600, y: 578, name: 'bottom-middle' }, { x: 1110, y: 570, name: 'bottom-right' },
 ];
-export const BALL_COLORS = ['#f7f6ee', '#f5c343', '#528afa', '#ee686d', '#ac7eec', '#f29951', '#39c5a0', '#d1548f', '#262b36', '#f5c343', '#528afa', '#ee686d', '#ac7eec', '#f29951', '#39c5a0', '#d1548f'];
+export const BALL_COLORS = ['#fcfbef', '#edb915', '#1549b0', '#bf2524', '#602b86', '#e36816', '#08704b', '#6b182c', '#10141b', '#edb915', '#1549b0', '#bf2524', '#602b86', '#e36816', '#08704b', '#6b182c'];
 export interface Spin { x:number; y:number }
 export function validSpin(value:unknown):value is Spin {
   if(!value||typeof value!=='object')return false;

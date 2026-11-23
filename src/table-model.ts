@@ -2,27 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POCKETS } from './physics.ts';
 import type { TableDesign } from './tables.ts';
-
-function texture(design:TableDesign,felt=false){
-  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;
-  const c=canvas.getContext('2d')!;c.fillStyle=felt?design.felt:design.cabinet;c.fillRect(0,0,512,256);
-  let seed=94;const random=()=>((seed=seed*16807%2147483647)/2147483647);
-  if(felt){
-    for(let i=0;i<14000;i++){c.fillStyle=i%2?'#ffffff0b':'#00000012';c.fillRect(random()*512,random()*256,1,1);}
-    c.strokeStyle='#ffffff20';c.lineWidth=.6;c.beginPath();c.moveTo(128,12);c.lineTo(128,244);c.stroke();c.beginPath();c.arc(128,128,40,Math.PI/2,Math.PI*1.5);c.stroke();
-    c.fillStyle='#ffffff28';c.textAlign='center';c.font='italic 22px Georgia';c.fillText(design.emblem,285,128);c.font='6px Arial';c.fillText('V E L V E T   B R E A K   /   C U S T O M   C O L L E C T I O N',285,144);
-  }else{
-    c.strokeStyle=design.grain;c.globalAlpha=design.pattern==='stone'?.34:.2;
-    for(let i=0;i<(design.pattern==='stone'?18:100);i++){
-      c.beginPath();const y=random()*256;c.moveTo(0,y);
-      if(design.pattern==='carbon'){c.lineTo(512,y+160);c.lineWidth=2;}
-      else if(design.pattern==='stone'){c.bezierCurveTo(160,y-110,330,y+80,512,y-70);c.lineWidth=random()*2+.3;}
-      else{c.bezierCurveTo(150,y+random()*8,350,y-random()*8,512,y);c.lineWidth=random()+.3;}
-      c.stroke();
-    }
-  }
-  const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;return map;
-}
+import { tableTexture, cushionGeometry, surfaceUV } from './surfaces.ts';
 
 function roundedShape(width:number,depth:number,r:number){
   const s=new THREE.Shape(),x=-width/2,y=-depth/2;
@@ -31,20 +11,21 @@ function roundedShape(width:number,depth:number,r:number){
 
 export function buildTableModel(design:TableDesign,highQuality=true){
   const group=new THREE.Group();group.name=`table-${design.id}`;
-  const woodMap=texture(design),wood=highQuality?new THREE.MeshPhysicalMaterial({map:woodMap,roughness:design.pattern==='lacquer'?.19:.32,metalness:design.pattern==='carbon'?.45:.04,clearcoat:.55,clearcoatRoughness:.18}):new THREE.MeshStandardMaterial({map:woodMap,roughness:.38,metalness:.05});
+  const woodMap=tableTexture(design.cabinet,design.pattern),wood=highQuality?new THREE.MeshPhysicalMaterial({map:woodMap,roughness:design.pattern==='lacquer'?.19:.34,metalness:design.pattern==='carbon'?.3:.04,envMapIntensity:.32,clearcoat:.5,clearcoatRoughness:.18}):new THREE.MeshStandardMaterial({map:woodMap,roughness:.34,metalness:.04,envMapIntensity:.32});
   const trim=new THREE.MeshStandardMaterial({color:design.trim,metalness:.62,roughness:.28});
   const dark=new THREE.MeshStandardMaterial({color:'#10151d',roughness:.64});
-  const rubber=new THREE.MeshStandardMaterial({color:design.cushion,roughness:.94});
-  const clothMap=texture(design,true),cloth=highQuality?new THREE.MeshPhysicalMaterial({map:clothMap,roughness:.94,sheen:.45,sheenColor:new THREE.Color(design.felt).lerp(new THREE.Color('#eee7d3'),.35),sheenRoughness:.9}):new THREE.MeshStandardMaterial({map:clothMap,roughness:.98});
+  const rubber=new THREE.MeshStandardMaterial({color:design.cushion,roughness:.86});
+  const clothMap=tableTexture(design.felt,'cloth'),cloth=highQuality?new THREE.MeshPhysicalMaterial({map:clothMap,roughness:.94,sheen:.3,sheenColor:new THREE.Color(design.felt).lerp(new THREE.Color('#eee7d3'),.2),sheenRoughness:.9}):new THREE.MeshStandardMaterial({map:clothMap,roughness:.96});
   if(highQuality){const weaveCanvas=document.createElement('canvas');weaveCanvas.width=weaveCanvas.height=64;const wc=weaveCanvas.getContext('2d')!;wc.fillStyle='#8080ff';wc.fillRect(0,0,64,64);for(let i=0;i<64;i+=4){wc.fillStyle='#9280fc';wc.fillRect(i,0,1,64);wc.fillStyle='#808dfc';wc.fillRect(0,i,64,1);}const normal=new THREE.CanvasTexture(weaveCanvas);normal.wrapS=normal.wrapT=THREE.RepeatWrapping;normal.repeat.set(24,12);cloth.normalMap=normal;cloth.normalScale.set(.12,.12);}
   const glow=new THREE.MeshBasicMaterial({color:design.trim});
   function mesh(geometry:THREE.BufferGeometry,material:THREE.Material,x=0,y=0,z=0){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);group.add(m);return m;}
   function box(w:number,h:number,d:number,x:number,y:number,z:number,material:THREE.Material=wood){return mesh(new THREE.BoxGeometry(w,h,d),material,x,y,z);}
+  function rail(w:number,d:number,x:number,z:number){const s=roundedShape(w,d,5);const m=mesh(surfaceUV(new THREE.ExtrudeGeometry(s,{depth:21,bevelEnabled:true,bevelSize:3,bevelThickness:3,bevelSegments:3,curveSegments:6}),w,d),wood,x,1,z);m.rotation.x=-Math.PI/2;return m;}
   function cylinder(rt:number,rb:number,h:number,x:number,y:number,z:number,material:THREE.Material=wood){return mesh(new THREE.CylinderGeometry(rt,rb,h,12),material,x,y,z);}
   function slab(w:number,d:number,h:number,y:number,material:THREE.Material,r=25,holes=false){
     const shape=roundedShape(w,d,r);
     if(holes)for(const p of POCKETS){const hole=new THREE.Path();hole.absarc(p.x-600,-(p.y-330),29,0,Math.PI*2,true);shape.holes.push(hole);}
-    const m=mesh(new THREE.ExtrudeGeometry(shape,{depth:h,bevelEnabled:true,bevelSize:2,bevelThickness:2,bevelSegments:1,steps:1,curveSegments:8}),material,0,y,0);m.rotation.x=-Math.PI/2;return m;
+    const m=mesh(surfaceUV(new THREE.ExtrudeGeometry(shape,{depth:h,bevelEnabled:true,bevelSize:2,bevelThickness:2,bevelSegments:1,steps:1,curveSegments:8}),w,d),material,0,y,0);m.rotation.x=-Math.PI/2;return m;
   }
   function brace(x1:number,y1:number,z1:number,x2:number,y2:number,z2:number,width:number,material:THREE.Material=wood){
     const a=new THREE.Vector3(x1,y1,z1),b=new THREE.Vector3(x2,y2,z2),delta=b.clone().sub(a);
@@ -63,21 +44,28 @@ export function buildTableModel(design:TableDesign,highQuality=true){
   }
   // Segmented rails leave physical openings at all six pocket mouths.
   for(const z of [-282,282])for(const x of [-272,272]){
-    box(466,24,49,x,9,z);
-    box(454,2,3,x,23,z,trim);
-    box(442,18,18,x,7,z<0?-240:240,rubber);
-    for(const dx of [-130,0,130]){const diamond=box(5,1,5,x+dx,22,z,trim);diamond.rotation.y=Math.PI/4;}
+    rail(470,57,x,z<0?-292:292);
+    box(450,1,1.4,x,25,z<0?-307:307,trim);
+    const cushion=mesh(cushionGeometry(464),rubber,x,0,z<0?-240:240);if(z>0)cushion.rotation.y=Math.PI;
+    for(const dx of [-130,0,130]){const diamond=box(4.5,1,7,x+dx,26,z<0?-289:289,trim);diamond.rotation.y=Math.PI/4;}
   }
   for(const x of [-551,551]){
-    box(56,24,405,x,9,0);box(3,2,390,x,23,0,trim);box(18,18,406,x<0?-510:510,7,0,rubber);
-    for(const z of [-130,0,130]){const diamond=box(5,1,5,x,22,z,trim);diamond.rotation.y=Math.PI/4;}
+    rail(430,57,x,0).rotation.z=Math.PI/2;
+    // End rails run across Z, their cloth noses face the playing rectangle.
+    const cushion=mesh(cushionGeometry(442),rubber,x<0?-510:510,0,0);cushion.rotation.y=x<0?Math.PI/2:-Math.PI/2;
+    box(1.4,1,400,x<0?-568:568,25,0,trim);
+    for(const z of [-130,0,130]){const diamond=box(7,1,4.5,x,26,z,trim);diamond.rotation.y=Math.PI/4;}
   }
+  const leather=new THREE.MeshStandardMaterial({color:'#171512',roughness:.72});
+  const pocketBlack=new THREE.MeshBasicMaterial({color:'#010403',side:THREE.DoubleSide});
   for(const p of POCKETS){
     const x=p.x-600,z=p.y-330;
-    const pocket=mesh(new THREE.CylinderGeometry(28,23,66,20,1,true),new THREE.MeshBasicMaterial({color:'#080b10',side:THREE.DoubleSide}),x,-29,z);
+    const pocket=mesh(new THREE.CylinderGeometry(28,23,66,32,1,true),pocketBlack,x,-29,z);
     pocket.name='recessed-pocket';
-    const bottom=mesh(new THREE.CircleGeometry(24,20),dark,x,-61,z);bottom.rotation.x=-Math.PI/2;
-    const rim=mesh(new THREE.TorusGeometry(29,2.4,6,32),trim,x,3,z);rim.rotation.x=-Math.PI/2;
+    // Above the solid lower cabinet: the well must never reveal its apron.
+    const bottom=mesh(new THREE.CircleGeometry(28,32),pocketBlack,x,-24,z);bottom.rotation.x=-Math.PI/2;
+    const rim=mesh(new THREE.RingGeometry(27,37,40),leather,x,1.8,z);rim.rotation.x=-Math.PI/2;
+    const lip=mesh(new THREE.TorusGeometry(28.5,1.7,6,40),leather,x,1,z);lip.rotation.x=-Math.PI/2;
   }
   const kind=design.architecture;
   if(kind==='turned'||kind==='columns'||kind==='retro'){
