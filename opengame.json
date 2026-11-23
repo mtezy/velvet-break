@@ -1,0 +1,11 @@
+{
+  "title": "Velvet Break",
+  "tagline": "A late-night pool club. Twelve missions. One perfect shot.",
+  "description": "Own the table in a precision pool campaign. Master clean pots, cushion banks, called pockets and ordered combinations across twelve handcrafted missions. Earn three stars, chase your personal best or unwind in free play. Mouse and keyboard controls; no account required to play.",
+  "genre": "racing-sports",
+  "kind": "game",
+  "build": {"command": "npm run build", "output": "dist"},
+  "controls": ["keyboard", "mouse"],
+  "players": "single",
+  "sdk": "^0.5"
+}
