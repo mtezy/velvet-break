@@ -6,9 +6,11 @@ export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'l
   const c=canvas.getContext('2d')!;c.fillStyle=base;c.fillRect(0,0,1024,512);
   let seed=731;const random=()=>((seed=seed*16807%2147483647)/2147483647);
   if(kind==='cloth'){
-    // Fine worsted nap, with a broad baked light pool rather than a noisy flat fill.
+    // The broad amber bounce is baked into the cloth so it needs no extra render pass.
+    c.save();c.translate(512,212);c.scale(610,292);
+    const lamp=c.createRadialGradient(0,0,0,0,0,1);lamp.addColorStop(0,'#ffc67965');lamp.addColorStop(.35,'#ffc6794d');lamp.addColorStop(.7,'#ffc6791e');lamp.addColorStop(1,'#ffc67900');c.fillStyle=lamp;c.fillRect(-1,-1,2,2);c.restore();
     for(let i=0;i<65000;i++){c.fillStyle=i%2?'#ffffff0c':'#00000010';c.fillRect(random()*1024,random()*512,1,.65);}
-    const light=c.createRadialGradient(470,240,40,512,256,580);light.addColorStop(0,'#b9e7d00e');light.addColorStop(.58,'#00000000');light.addColorStop(1,'#001b2190');c.fillStyle=light;c.fillRect(0,0,1024,512);
+    const edge=c.createRadialGradient(512,256,0,512,256,580);edge.addColorStop(.58,'#001b2100');edge.addColorStop(1,'#001b2190');c.fillStyle=edge;c.fillRect(0,0,1024,512);
     // Cushion contact occlusion is baked into the nap, not a shadow-map pass.
     for(const [x,y,w,h,vertical,reverse] of [[38,40,22,432,0,0],[964,40,22,432,0,1],[38,40,948,18,1,0],[38,454,948,18,1,1]]){
       const g=c.createLinearGradient(x,y,x+(vertical?0:w),y+(vertical?h:0));g.addColorStop(reverse?1:0,'#00191c70');g.addColorStop(reverse?0:1,'#00191c00');c.fillStyle=g;c.fillRect(x,y,w,h);
@@ -32,7 +34,23 @@ export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'l
 
 export function contactShadow(){
   const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const c=canvas.getContext('2d')!;
-  const g=c.createRadialGradient(32,32,4,32,32,31);g.addColorStop(0,'#000904c9');g.addColorStop(.35,'#000904a0');g.addColorStop(.65,'#00090448');g.addColorStop(1,'#00090400');c.fillStyle=g;c.fillRect(0,0,64,64);return new THREE.CanvasTexture(canvas);
+  const g=c.createRadialGradient(32,32,4,32,32,31);g.addColorStop(0,'#020603f2');g.addColorStop(.35,'#020603d4');g.addColorStop(.62,'#02060391');g.addColorStop(.82,'#02060332');g.addColorStop(1,'#02060300');c.fillStyle=g;c.fillRect(0,0,64,64);return new THREE.CanvasTexture(canvas);
+}
+
+export function placeBallShadow(shadow:THREE.Object3D,ball:THREE.Vector3,lamp:THREE.Vector3,economy:boolean){
+  const height=.4;
+  if(economy){
+    shadow.position.set(ball.x,height,ball.z);
+    shadow.rotation.set(-Math.PI/2,0,0);
+    shadow.scale.set(1,1,1);
+    return;
+  }
+  const dx=ball.x-lamp.x,dz=ball.z-lamp.z;
+  const projection=(ball.y-height)/(lamp.y-ball.y);
+  const spread=Math.hypot(dx,dz)/(lamp.y-ball.y);
+  shadow.position.set(ball.x+dx*projection,height,ball.z+dz*projection);
+  shadow.rotation.set(-Math.PI/2,0,-Math.atan2(dz,dx));
+  shadow.scale.set(1.17+spread*.32,1,1);
 }
 
 /** A tapered K-profile nose meets the unchanged physics boundary exactly. */
