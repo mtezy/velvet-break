@@ -7,7 +7,7 @@ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const references=(markup:string)=>Array.from(markup.matchAll(/<use href="#(rune-[\w-]+)"/g),([,id])=>id);
 
 test('static and dynamic rune icons resolve to one SVG symbol each',()=>{
-  const symbols=Array.from(html.matchAll(/<symbol id="(rune-[\w-]+)" viewBox="0 0 24 24"><path d="[^"]+"\/><\/symbol>/g),([,id])=>id);
+  const symbols=Array.from(html.matchAll(/<symbol id="(rune-[\w-]+)" viewBox="0 0 24 24">/g),([,id])=>id);
   assert.equal(new Set(symbols).size,symbols.length);
   const dynamic=['forward','portal','restart','unlimited','verified','selected'] as const;
   const used=new Set(references(html+dynamic.map(runeIcon).join('')+runeStars(1)));

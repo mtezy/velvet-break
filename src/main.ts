@@ -159,6 +159,7 @@ function updateHud(){
   const duel=versusMatch();
   const signature=[titleOpen,renderer.cueInspection,offline?.phase,offline?.difficulty,duel?.reason,duel?.calledPocket,duel?.pushOut,duel?.fouls.join(),duel?.kitchen,online?.active,online?.connected,online?.pending,duel?.turn,duel?.shots,duel?.inShot,duel?.ballInHand,duel?.winner,duel?.potted.length,duel?.groups.join(),session.shots,session.potted.length,session.inShot,session.outcome,Math.ceil(session.timeLeft),paused,hostPaused,Math.round(power*100),practice,index].join('|');
   if(signature===lastHud)return;lastHud=signature;
+  powerInput.style.setProperty('--power-fill', `${Math.max(0, Math.min(100, (power * 100 - 10) / 90 * 100))}%`);
   const ruleTurn=!!duel&&canChooseRule()&&!duel.inShot&&duel.winner===null;
   $('push-out').hidden=!ruleTurn||duel.pushOut!=='available';
   $('push-accept').hidden=$('push-pass').hidden=!ruleTurn||duel.pushOut!=='decision';
