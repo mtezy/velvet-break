@@ -166,6 +166,8 @@ $('fullscreen-button').addEventListener('click',()=>{if(og.env.embedded&&og.env.
 $('resume-button').addEventListener('click',()=>setPause(false));
 pauseDialog.addEventListener('cancel',e=>{e.preventDefault();setPause(false);});
 window.addEventListener('keydown',e=>{
+  // Escape exits the editor even while a range or text input owns focus.
+  if(e.code==='Escape'&&!guide.open&&!pauseDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
   if((e.target as HTMLElement).matches('input,textarea,select'))return;
   if((e.target as HTMLElement).closest('button,summary')&&['Space','Enter'].includes(e.code))return;
   if(guide.open||pauseDialog.open){if(e.code==='KeyP'&&pauseDialog.open)setPause(false);return;}
@@ -176,7 +178,6 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space')startCharge();
   if(e.code==='KeyR'&&!online?.active)loadMission(index,practice);
   if(e.code==='KeyP')setPause(!paused);
-  if(e.code==='Escape'){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;}
 });
 window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')finishCharge();});
 window.addEventListener('blur',()=>{cancelCharge();keys.clear();});
