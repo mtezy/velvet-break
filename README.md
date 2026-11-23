@@ -2,7 +2,21 @@
 
 A late-night pool club. Twelve missions. One perfect shot.
 
-A complete, single-player browser billiards game with a handcrafted mission campaign, full-rack free play, three-star scoring, local progress, procedural sound and mouse/keyboard controls. Three.js renders the table and rolling 3D balls with procedural materials, lighting and lightweight contact shadows; a Canvas fallback supports browsers without WebGL. No external art, fonts, audio downloads, account or backend is required.
+## Runebound update
+
+Eight selectable custom builds now have actual cabinet depth, recessed pockets, legs, supports and a floor stage: The Heritage (turned walnut), Afterglow (carbon trestle), Glacier (twin pedestal), Sovereign (fluted columns), Desert Social (flared teak), Obsidian (marble monolith), Kyoto House (ash beams), and Apex Arena (alloy tournament chassis). Table choice persists independently of campaign progress and does not alter collision bounds.
+
+The rune-forged interface includes a relic vault, perspective 3D/overhead camera controls, right-drag orbit and wheel zoom. Balls have enamel reflections, texture-mapped numbers/stripes that roll with the sphere, and a spotted cue ball. Optional shot runes, impact sparks, trails, pocket rings and victory effects respect reduced-motion defaults.
+
+## Online VS
+
+Choose **Online VS**, enter a name and select **8-ball** or **9-ball**, then create a room. Send the invite link or eight-character code to a friend; they open the game and join from a second device. The host picks the table and breaks. A legal scoring pot keeps the turn; fouls give ball in hand (click clear felt before shooting). Both players must request a rematch. Leaving/disconnecting freezes the match rather than silently continuing against an absent opponent.
+
+Online uses the MIT-licensed PeerJS client and public PeerJS signaling/STUN/TURN infrastructure; no account, database, camera or microphone is required. Match data travels over an encrypted WebRTC data channel. The host is authoritative for physics, turn checks and rules; this is casual invite-only play, not ranked anti-cheat. Keep the host tab visible. Restricted networks or unavailable public relay service can prevent joining; the lobby reports failures and timeouts. Campaign/free play stay independent of these online services. Match state is not persisted across reloads.
+
+**Club rules:** 8-ball assigns solids/stripes on a legal pot after the break; an early 8 or foul on the 8 loses, and an opening-break 8 is respotted. 9-ball requires lowest-number-first contact; a legal 9, including a combination/break pot, wins, and a fouled 9 is respotted. Both modes enforce scratches, first contact and a cushion/pot after contact. These variants do not implement called pockets, push-outs, or the three-foul rule; the lobby states these differences.
+
+A browser billiards game with a handcrafted single-player mission campaign, full-rack free play, invite-only online VS, three-star scoring, local progress, procedural sound and mouse/keyboard controls. Three.js renders the table and rolling 3D balls with procedural materials, lighting and lightweight contact shadows; a Canvas fallback supports browsers without WebGL. No external art, fonts, audio downloads, account or game backend is required; online play uses the public PeerJS service.
 
 ## Run
 
@@ -31,6 +45,9 @@ npm start
 | Restart | R or Restart button |
 | Pause | P (also pauses when the tab is hidden) |
 | Cancel charge | Escape |
+| Orbit / zoom | Right-drag / scroll over table |
+| Precision camera | Overhead button; Reset view restores 3D club |
+| Ball in hand (VS) | Click an empty spot on felt before shooting |
 
 The first mission starts aimed at the ball so a 35% shot is a useful introduction. A scratch returns the cue ball and costs an extra shot. Bank objectives require the **object** ball to touch a rail in the same shot it drops. Called-pocket and ordered-pot rules are explained before the shot. Any mission can be selected, so players can explore without grinding unlocks. Stars and personal-best shot counts are kept only in this browser; clearing browser storage removes them. Sound is off until enabled.
 
@@ -48,7 +65,7 @@ npx opengame login
 npx opengame deploy .
 ```
 
-The owner must sign in, review the private preview, confirm competition eligibility and submit/publish the entry themselves. Building this project does not submit it to the jam. SDK initialization, ready, host pause and host mute are integrated; the first frame and gameplay do not depend on a platform connection. No platform credentials belong in the game build.
+The owner must sign in, review the private preview, confirm competition eligibility and submit/publish the entry themselves. Building this project does not submit it to the jam. SDK initialization, ready, host pause and host mute are integrated; the first frame and solo gameplay do not depend on a platform connection. OpenGame sandbox/network compatibility for PeerJS must be checked in its private preview before publication; ordinary browser testing does not prove platform approval. No platform credentials belong in the game build.
 
 ## Implementation
 
@@ -61,4 +78,4 @@ The owner must sign in, review the private preview, confirm competition eligibil
 
 ## Assets and rights
 
-The game code, procedural artwork, icon and synthesized sound were created for this project. No third-party art/audio/font assets are used. Runtime dependency `@opengamehq/sdk` is Apache-2.0 licensed and `three` is MIT licensed; development dependencies retain their own licenses. System fonts are rendered by the player's browser.
+The game code, procedural artwork, icon and synthesized sound were created for this project. No third-party art/audio/font assets are used. Runtime dependency `@opengamehq/sdk` is Apache-2.0 licensed; `three` and `peerjs` are MIT licensed. Development dependencies retain their own licenses. System fonts are rendered by the player's browser.

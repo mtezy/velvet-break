@@ -6,7 +6,7 @@ export const POCKETS = [
 ];
 export const BALL_COLORS = ['#f7f6ee', '#f5c343', '#528afa', '#ee686d', '#ac7eec', '#f29951', '#39c5a0', '#d1548f', '#262b36', '#f5c343', '#528afa', '#ee686d', '#ac7eec', '#f29951', '#39c5a0', '#d1548f'];
 export interface Ball { id: number; x: number; y: number; vx: number; vy: number; active: boolean; banks: number; trail: {x: number; y: number}[] }
-export interface PhysicsEvent { type: 'pot' | 'rail' | 'collision'; ball: Ball; pocket?: number; speed: number }
+export interface PhysicsEvent { type: 'pot' | 'rail' | 'collision'; ball: Ball; otherBall?:Ball; pocket?: number; speed: number }
 export function ball(id: number, x: number, y: number): Ball { return { id, x, y, vx: 0, vy: 0, active: true, banks: 0, trail: [] }; }
 export function moving(balls: Ball[]) { return balls.some(b => b.active && Math.hypot(b.vx, b.vy) > 0); }
 export function strike(cue: Ball, angle: number, power: number) {
@@ -46,7 +46,7 @@ export function simulate(balls: Ball[], dt: number): PhysicsEvent[] {
       if (approach > 0) {
         const impulse = approach * .985;
         a.vx -= impulse * nx; a.vy -= impulse * ny; b.vx += impulse * nx; b.vy += impulse * ny;
-        if (approach > 12) events.push({type: 'collision', ball: b, speed: approach});
+        events.push({type: 'collision', ball: b, otherBall:a, speed: approach});
       }
     }
   }

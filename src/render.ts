@@ -1,4 +1,5 @@
 import { TABLE, POCKETS, BALL_COLORS, aimTrace, type Ball } from './physics.ts';
+import { TABLE_DESIGNS, type TableDesign } from './tables.ts';
 export interface Particle {x:number;y:number;vx:number;vy:number;life:number;color:string;}
 export interface RenderState {balls:Ball[];angle:number;power:number;charge:number;aiming:boolean;targetPocket?:number;particles:Particle[];time:number;}
 const ink = '#c5eedc';
@@ -15,23 +16,24 @@ export function drawBall(ctx:CanvasRenderingContext2D,b:Ball) {
   ctx.globalAlpha=.5;ctx.beginPath();ctx.arc(b.x-3,b.y-4,3,0,Math.PI*2);ctx.fillStyle='#ffffff';ctx.fill();
   ctx.globalAlpha=.18;ctx.beginPath();ctx.arc(b.x,b.y,r-1,.2,2.5);ctx.lineWidth=2;ctx.strokeStyle='#000000';ctx.stroke();ctx.restore();
 }
-let surface: HTMLCanvasElement | undefined;
-function makeSurface(){
+let surface: HTMLCanvasElement | undefined,surfaceDesign='';
+function makeSurface(design:TableDesign){
+  surfaceDesign=design.id;
   surface=document.createElement('canvas');surface.width=1200;surface.height=660;
   const ctx=surface.getContext('2d')!;
   roundRect(ctx,23,21,1154,620,54,'#060c13');
   ctx.save();ctx.shadowBlur=30;ctx.shadowColor='#00000070';ctx.shadowOffsetY=12;
   roundRect(ctx,29,22,1142,608,48,'#22212c','#504637');ctx.restore();
-  roundRect(ctx,36,29,1128,594,43,'#302c35','#5d5140');
+  roundRect(ctx,36,29,1128,594,43,design.cabinet,design.trim);
   roundRect(ctx,43,36,1114,580,38,'#28262e');
   // Thin brass inlay and blackened walnut rails.
   ctx.lineWidth=1.5;ctx.strokeStyle='#a18c55';ctx.beginPath();ctx.roundRect(50,43,1100,566,32);ctx.stroke();
   roundRect(ctx,69,65,1062,530,26,'#072b29');
-  roundRect(ctx,87,87,1026,486,11,'#176458');
-  ctx.fillStyle='#1c6b5d';ctx.fillRect(95,100,1010,458);
+  roundRect(ctx,87,87,1026,486,11,design.felt);
+  ctx.fillStyle=design.felt;ctx.fillRect(95,100,1010,458);
   let seed=112;
   for(let i=0;i<14500;i++){seed=(seed*16807)%2147483647;const x=100+seed%1000;seed=(seed*16807)%2147483647;const y=102+seed%456;ctx.fillStyle=i%2?'#ffffff05':'#00000007';ctx.fillRect(x,y,1,1);}
-  ctx.lineWidth=12;ctx.strokeStyle='#0e4b42';ctx.strokeRect(93,93,1014,474);
+  ctx.lineWidth=12;ctx.strokeStyle=design.cushion;ctx.strokeRect(93,93,1014,474);
   ctx.lineWidth=2;ctx.strokeStyle='#368576';ctx.strokeRect(102,102,996,456);
   for(const p of POCKETS){circle(ctx,p.x,p.y,30,'#060b12');circle(ctx,p.x,p.y-2,24,'#02070c');ctx.beginPath();ctx.arc(p.x,p.y,30,.15,Math.PI-.15);ctx.strokeStyle='#4c4537';ctx.lineWidth=3;ctx.stroke();}
   for(const y of [59,599])for(const x of [220,410,790,980]){ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle='#b3a476';ctx.fillRect(-2.3,-2.3,4.6,4.6);ctx.restore();}
@@ -40,8 +42,8 @@ function makeSurface(){
   ctx.beginPath();ctx.arc(350,330,85,Math.PI/2,Math.PI*1.5);ctx.stroke();circle(ctx,350,330,2,'#a0c9b64d');circle(ctx,855,330,2,'#a0c9b64d');
   ctx.textAlign='center';ctx.fillStyle='#b0ddc31a';ctx.font='italic 32px Georgia';ctx.fillText('velvet club',655,325);ctx.font='9px Arial';ctx.fillText('A F T E R   H O U R S   •   S I N C E   2 0 2 6',655,345);
 }
-export function render(ctx:CanvasRenderingContext2D,state:RenderState) {
-  if(!surface)makeSurface();ctx.clearRect(0,0,1200,660);ctx.drawImage(surface!,0,0);
+export function render(ctx:CanvasRenderingContext2D,state:RenderState,design:TableDesign=TABLE_DESIGNS[0]) {
+  if(!surface||surfaceDesign!==design.id)makeSurface(design);ctx.clearRect(0,0,1200,660);ctx.drawImage(surface!,0,0);
   if(state.targetPocket!==undefined){const p=POCKETS[state.targetPocket];ctx.save();ctx.shadowBlur=18;ctx.shadowColor='#e8bd76';ctx.strokeStyle='#edc783';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y,32,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle='#edc783';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText('CALLED POCKET',p.x,p.y<300?p.y+55:p.y-45);ctx.restore();}
   const cue=state.balls.find(b=>b.id===0)!;
   if(state.aiming&&cue.active){
