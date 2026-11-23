@@ -1,0 +1,4 @@
+.break-highlight{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse 39% 44% at 65% 50%,#ffedbb 0%,#ffd488ad 34%,#f5b76a33 70%,transparent 100%)}
+.break-highlight-economy{background:radial-gradient(ellipse 39% 44% at 65% 50%,#ffdf9e,transparent)}
+.effects-off .break-highlight{visibility:hidden}
+@media(prefers-reduced-motion:reduce){.break-highlight{visibility:hidden}}

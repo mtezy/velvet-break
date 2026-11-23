@@ -8,7 +8,7 @@ const cleanName=(name:unknown)=>typeof name==='string'?name.trim().slice(0,20)||
 const protocol=2;
 const roomId=(code:string)=>`velvet-runes-v${protocol}-${code}`;
 type RuleAction={type:'call-eight';pocket:number}|{type:'push-out'}|{type:'push-choice';passBack:boolean};
-interface OnlineHooks {change:()=>void;table:(id:string,locked:boolean)=>void;tableId:()=>string;events:(events:PhysicsEvent[])=>void;impact:(impact:TableImpact)=>void;shot:(power:number)=>void;exit:()=>void;}
+interface OnlineHooks {change:()=>void;table:(id:string,locked:boolean)=>void;tableId:()=>string;events:(events:PhysicsEvent[])=>void;impact:(impact:TableImpact)=>void;shot:(power:number,opening:boolean)=>void;exit:()=>void;}
 
 /** Invite-only WebRTC. The host owns physics, rules and turn validation. */
 export class OnlineGame {
@@ -82,7 +82,7 @@ export class OnlineGame {
       if(data.type==='hello'&&!this.connected){this.names[1]=cleanName(data.name);this.connected=true;clearTimeout(this.timer);this.match=new VersusMatch(this.mode);this.hostReady=this.guestReady=false;this.sendState();this.refresh();return;}
       if(!this.connected||!this.match)return;
       if(data.type==='shoot'&&data.sequence===this.match.shots&&typeof data.angle==='number'&&typeof data.power==='number'){
-        if(this.match.shoot(1,data.angle,data.power,data.spin)){this.hooks.shot(data.power);this.send({type:'shot',power:data.power,spin:data.spin??{x:0,y:0}});}this.sendState();
+        if(this.match.shoot(1,data.angle,data.power,data.spin)){this.hooks.shot(data.power,this.match.shots===1);this.send({type:'shot',power:data.power,spin:data.spin??{x:0,y:0}});}this.sendState();
       }
       if(data.type==='place'&&typeof data.x==='number'&&typeof data.y==='number'){this.match.placeCue(1,data.x,data.y);this.sendState();}
       if(data.type==='call-eight'||data.type==='push-out'||data.type==='push-choice'){
@@ -103,7 +103,7 @@ export class OnlineGame {
         this.hooks.events(pots);
         this.refresh();
       }
-      if(data.type==='shot'&&typeof data.power==='number'&&Number.isFinite(data.power)&&data.power>=.1&&data.power<=1)this.hooks.shot(data.power);
+      if(data.type==='shot'&&typeof data.power==='number'&&Number.isFinite(data.power)&&data.power>=.1&&data.power<=1)this.hooks.shot(data.power,this.match?.shots===0);
       if(this.connected&&data.type==='impacts'&&Array.isArray(data.impacts)&&data.impacts.length<=3&&data.impacts.every(validTableImpact)){
         for(const impact of data.impacts)this.hooks.impact(impact);
       }
