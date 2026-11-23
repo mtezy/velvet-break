@@ -1,21 +1,30 @@
 import * as THREE from 'three';
 
-export function ballLampEnvironment(pmrem:THREE.PMREMGenerator){
-  const scene=new THREE.Scene();
-  scene.background=new THREE.Color('#52504a');
-  const key=new THREE.PlaneGeometry(308,105),fill=new THREE.PlaneGeometry(146,58);
-  const keyLight=new THREE.MeshBasicMaterial({color:new THREE.Color(42,34,24),toneMapped:false});
-  const fillLight=new THREE.MeshBasicMaterial({color:new THREE.Color(13,10.5,8),toneMapped:false});
-  // Set the reflected shades back so their glints fall above the numbers in the club view.
-  const primary=new THREE.Mesh(key,keyLight);
-  primary.position.set(-65,438,-530);primary.lookAt(0,0,0);scene.add(primary);
-  for(const x of [-325,325]){
-    const lamp=new THREE.Mesh(fill,fillLight);
-    lamp.position.set(x,531,-238);lamp.rotation.x=Math.PI/2;scene.add(lamp);
-  }
-  const target=pmrem.fromScene(scene,0,1,1000,{size:128});
-  key.dispose();fill.dispose();keyLight.dispose();fillLight.dispose();
-  return target;
+const lampFaceSize=256,lastMipSize=8;
+
+export function decodeBallLampEnvironment(data:ArrayBuffer){
+  let offset=0;
+  const faces=Array.from({length:6},()=>{
+    const mipmaps=[];
+    for(let size=lampFaceSize;size>=lastMipSize;size>>=1){
+      const pixels=new Uint16Array(data,offset,size*size*4);
+      mipmaps.push({data:pixels,width:size,height:size});offset+=pixels.byteLength;
+    }
+    return {width:lampFaceSize,height:lampFaceSize,mipmaps};
+  });
+  if(offset!==data.byteLength)throw Error('Invalid ball lamp cubemap size');
+  // Three's explicit cubemap mip-chain uploader also accepts uncompressed RGBA.
+  const texture=new THREE.CompressedCubeTexture(faces,THREE.RGBAFormat as THREE.CompressedPixelFormat,THREE.HalfFloatType);
+  texture.name='ball-lamp-cubemap';texture.colorSpace=THREE.LinearSRGBColorSpace;
+  texture.minFilter=THREE.LinearMipmapLinearFilter;texture.isPMREMTexture=true;texture.needsUpdate=true;
+  return texture;
+}
+
+export async function loadBallLampEnvironment(){
+  const response=await fetch(new URL('./ball-lamps.bin',import.meta.url));
+  if(!response.ok||!response.body)throw Error('Could not load ball lamp cubemap');
+  const stream=response.body.pipeThrough(new DecompressionStream('gzip'));
+  return decodeBallLampEnvironment(await new Response(stream).arrayBuffer());
 }
 
 export function resinBallMaterial(map:THREE.Texture,envMap:THREE.Texture,economy:boolean){

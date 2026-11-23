@@ -13,7 +13,7 @@ import { contactShadow, createBallContactDecals, placeBallShadow, updateBallCont
 import { BALL_LABEL_SCALE, mobileBallLabelScale, type ProjectedBallLabel } from './ball-labels.ts';
 import { titleCameraPosition } from './title-camera.ts';
 import { BreakFlash, PocketHighlights } from './highlight-effects.ts';
-import { ballLampEnvironment, resinBallMaterial, setResinBallQuality } from './ball-finish.ts';
+import { loadBallLampEnvironment, resinBallMaterial, setResinBallQuality } from './ball-finish.ts';
 
 interface BallLabel extends ProjectedBallLabel { sprite:THREE.Sprite; texture:THREE.CanvasTexture; }
 
@@ -59,7 +59,7 @@ export class PoolRenderer {
   private shadowTexture=contactShadow();
   private shadowMaterial=new THREE.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.93,depthWrite:false});
   private ballContactDecals=createBallContactDecals(this.shadowTexture);
-  private ballEnvironment?:THREE.RenderTarget;
+  private ballEnvironment?:THREE.Texture;
   clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
   cuePath=new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(241*2*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(241*2*4),4)).setIndex(Array.from({length:240},(_,i)=>[i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2]).flat()),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
   cueStop=new THREE.Mesh(new THREE.RingGeometry(4,6,32),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:.95,depthTest:false,depthWrite:false}));
@@ -98,10 +98,13 @@ export class PoolRenderer {
     this.cuePath.renderOrder=20;this.cueStop.renderOrder=21;this.cueStop.rotation.x=-Math.PI/2;
     this.ghost.rotation.x=this.targetRing.rotation.x=this.calledRing.rotation.x=-Math.PI/2;
     this.buildCue();
-    // Pre-filter once, including software GPUs: standard enamel needs a real
-    // radiance map too. This is not a live reflection or an extra frame pass.
-    const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.025).texture;this.scene.environmentIntensity=.4;studio.dispose();
-    this.ballEnvironment=ballLampEnvironment(pmrem);pmrem.dispose();
+    const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.025).texture;this.scene.environmentIntensity=.4;studio.dispose();pmrem.dispose();
+    this.ballEnvironment=this.scene.environment;
+    void loadBallLampEnvironment().then(environment=>{
+      this.ballEnvironment=environment;
+      for(const {mesh} of this.balls.values())mesh.material.envMap=environment;
+      this.dirty=true;
+    }).catch(error=>console.warn('Ball lamp reflections will use the room environment:',error));
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
     this.reducedMotion.addEventListener('change',()=>{this.titleStarted=undefined;this.dirty=true;});
     this.resize();
@@ -160,7 +163,7 @@ export class PoolRenderer {
     if(id!==0)for(const cx of [128,384]){c.beginPath();c.arc(cx,128,41,0,Math.PI*2);c.fillStyle='#fff8e7';c.fill();c.font=`900 ${id>9?49:56}px Arial`;c.textAlign='center';c.textBaseline='middle';c.fillStyle='#101820';c.fillText(String(id),cx,131);}
     else for(const cx of [64,192,320,448]){c.beginPath();c.arc(cx,128,5,0,Math.PI*2);c.fillStyle='#b6353e';c.fill();}
     const map=new THREE.CanvasTexture(mapCanvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=Math.min(4,this.renderer!.capabilities.getMaxAnisotropy());
-    const material=resinBallMaterial(map,this.ballEnvironment!.texture,this.economyBallFinish);
+    const material=resinBallMaterial(map,this.ballEnvironment!,this.economyBallFinish);
     const mesh=new THREE.Mesh(this.ballGeometry,material);mesh.position.set(x-600,TABLE.radius,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;
     const shadow=new THREE.Mesh(this.shadowGeometry,this.shadowMaterial);this.scene.add(mesh,shadow);
     const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;drawBallLabel(labelCanvas,id,this.phoneLabels);
