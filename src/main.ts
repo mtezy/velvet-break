@@ -21,9 +21,11 @@ import manifest from '../opengame.json';
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const canvas=$<HTMLCanvasElement>('game'),powerInput=$<HTMLInputElement>('power');
+const viewOptions=$('hud-view-options');
 const renderer=new PoolRenderer(canvas);
 const room=new TableRoom(renderer);
 const cameraRig=new CameraRig(renderer,room),cueLocker=new CueLocker(renderer);
+viewOptions.addEventListener('beforetoggle',e=>{if((e as ToggleEvent).newState==='open')cameraRig.close();});
 let online:OnlineGame|undefined;
 let offline:OfflineGame|undefined,cpuResultShown=false;
 const cpuDialog=$<HTMLDialogElement>('cpu-dialog');
@@ -87,6 +89,7 @@ function startOffline(){
 function restartCurrent(){if(offline)startOffline();else loadMission(index,practice,challengeDay===undefined?undefined:dailyDay());}
 function setTitle(value:boolean){
   if(value&&online?.active){toast('Leave the online room before returning to the title.');return;}
+  viewOptions.hidePopover();
   renderer.clearHighlights();
   cancelCharge();keys.clear();titleOpen=value;document.body.classList.toggle('title-open',value);renderer.setTitleMode(value);
   cameraRig.close();cueLocker.inspect(false);
@@ -361,6 +364,7 @@ replayDialog.addEventListener('cancel',e=>{e.preventDefault();stopReplay();});
 window.addEventListener('keydown',e=>{
   if(onboarding.open)return;
   if(replay||e.code===skipKey){e.preventDefault();skipKey=e.code;stopReplay();return;}
+  if(e.code==='Escape'&&viewOptions.matches(':popover-open'))return;
   // Escape exits the editor even while a range or text input owns focus.
   if(e.code==='Escape'&&!guide.open&&!pauseDialog.open&&!dailyDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
   if((e.target as HTMLElement).matches('input,textarea,select'))return;
