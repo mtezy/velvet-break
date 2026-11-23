@@ -117,7 +117,8 @@
 
   @media (max-width: 360px) {
     .shot-controls .primary-button { min-width: 64px; padding-inline: 8px; gap: 6px; }
-    .power-label, .power-ends { letter-spacing: 0; }
+    .power-label { letter-spacing: 0; }
+    .power-ends { display: none; }
   }
 
   @media (max-height: 720px) {
