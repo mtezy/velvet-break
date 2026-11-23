@@ -110,10 +110,10 @@ export function predictCuePath(balls:Ball[],angle:number,power:number,spin:Spin=
     if(cue.spinContact)break;
     if(!moving([cue]))return [];
   }
-  if(!cue.spinContact||Math.hypot(cue.vx,cue.vy)<4)return [];
+  if(!cue.spinContact)return [];
   cue.x=trace.x;cue.y=trace.y;
   const path=[{x:cue.x,y:cue.y}];let distance=0,bounces=0;
-  for(let i=0;i<36&&distance<80&&moving([cue]);i++){
+  for(let i=0;i<240&&distance<80&&moving([cue]);i++){
     const before={x:cue.x,y:cue.y},events=simulate([cue],step);
     if(!cue.active)break;
     const segment=Math.hypot(cue.x-before.x,cue.y-before.y),fraction=Math.min(1,(80-distance)/Math.max(segment,1e-9));

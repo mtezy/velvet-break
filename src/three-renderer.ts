@@ -23,7 +23,8 @@ export class PoolRenderer {
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
   clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
-  cuePath=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(37*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(37*4),4)),new THREE.LineBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,opacity:.8,depthTest:false,depthWrite:false}));
+  cuePath=new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(241*2*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(241*2*4),4)).setIndex(Array.from({length:240},(_,i)=>[i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2]).flat()),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
+  cueStop=new THREE.Mesh(new THREE.RingGeometry(4,6,32),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:.95,depthTest:false,depthWrite:false}));
   constructor(public canvas:HTMLCanvasElement){
     const lineMaterial=new THREE.LineDashedMaterial({color:0xc5eedc,dashSize:5,gapSize:8,transparent:true,opacity:.55,depthTest:false});
     this.aim=new THREE.Line(new THREE.BufferGeometry(),lineMaterial);this.targetLine=new THREE.Line(new THREE.BufferGeometry(),lineMaterial.clone());
@@ -48,7 +49,8 @@ export class PoolRenderer {
     const key=new THREE.DirectionalLight(0xffddaa,2.8);key.position.set(-260,900,200);this.scene.add(key);
     const practical=new THREE.PointLight(0xffd399,1.0,2300,0);practical.position.set(0,480,0);this.scene.add(practical);
     this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
-    this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath);
+    this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath,this.cueStop);
+    this.cuePath.renderOrder=20;this.cueStop.renderOrder=21;this.cueStop.rotation.x=-Math.PI/2;
     this.ghost.rotation.x=this.targetRing.rotation.x=this.calledRing.rotation.x=-Math.PI/2;
     this.buildCue();
     // A small procedural studio reflection gives enamel balls curved highlights.
@@ -123,14 +125,20 @@ export class PoolRenderer {
     if(this.cueDisplay.visible){const direction=this.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);this.cueDisplay.position.copy(this.camera.position).addScaledVector(direction,900).addScaledVector(right,130).addScaledVector(up,this.camera.aspect<.8?95:10);this.cueDisplay.quaternion.copy(this.camera.quaternion);this.cueDisplay.rotateZ(-.12);this.cueDisplay.rotateY(this.cueSpin);this.cueDisplay.scale.setScalar(Math.min(1.2,this.camera.aspect*1.25));}
     const cue=state.balls[0],aiming=state.aiming&&cue.active&&!this.cueInspection;
     this.cue.visible=this.aim.visible=this.ghost.visible=aiming;this.targetRing.visible=this.targetLine.visible=false;
-    this.cuePath.visible=false;
+    this.cuePath.visible=this.cueStop.visible=false;
     if(aiming){const trace=aimTrace(state.balls,state.angle);this.line(this.aim,cue,trace);this.ghost.position.set(trace.x-600,14,trace.y-330);
       const path=predictCuePath(state.balls,state.angle,state.power,state.spin);
       if(path.length>1){
         this.cuePath.visible=true;const geometry=this.cuePath.geometry,position=geometry.getAttribute('position'),color=geometry.getAttribute('color');
-        path.forEach((p,i)=>{position.setXYZ(i,p.x-600,14.5,p.y-330);color.setXYZW(i,1,1,1,1-i/(path.length-1));});
-        position.needsUpdate=color.needsUpdate=true;geometry.setDrawRange(0,path.length);geometry.computeBoundingSphere();
+        path.forEach((p,i)=>{
+          const from=path[Math.max(0,i-1)],to=path[Math.min(path.length-1,i+1)],length=Math.hypot(to.x-from.x,to.y-from.y)||1;
+          const nx=-(to.y-from.y)/length*1.5,ny=(to.x-from.x)/length*1.5;
+          position.setXYZ(i*2,p.x-600+nx,14.5,p.y-330+ny);position.setXYZ(i*2+1,p.x-600-nx,14.5,p.y-330-ny);
+          for(let side=0;side<2;side++)color.setXYZW(i*2+side,1,1,1,.95-.7*i/(path.length-1));
+        });
+        position.needsUpdate=color.needsUpdate=true;geometry.setDrawRange(0,(path.length-1)*6);geometry.computeBoundingSphere();
       }
+      if(path.length&&Math.hypot(path.at(-1)!.x-path[0].x,path.at(-1)!.y-path[0].y)<3){this.cueStop.visible=true;this.cueStop.position.set(path[0].x-600,15,path[0].y-330);}
       if(trace.target){const t=trace.target,a=Math.atan2(t.y-trace.y,t.x-trace.x);this.targetRing.visible=this.targetLine.visible=true;this.targetRing.position.set(t.x-600,15,t.y-330);this.line(this.targetLine,t,{x:t.x+Math.cos(a)*95,y:t.y+Math.sin(a)*95});}
       const pull=state.charge?state.power*70:0;this.cue.position.set(cue.x-600-Math.cos(state.angle)*(28+pull),17,cue.y-330-Math.sin(state.angle)*(28+pull));this.cue.rotation.y=-state.angle;
     }

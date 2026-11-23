@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { ball, simulate, moving, strike, aimTrace, respot, TABLE, clampSpin, predictCuePath } from '../src/physics.ts';
 import { Session } from '../src/session.ts';
 import { missions, createLayout, practiceLayout } from '../src/missions.ts';
+import { drawCuePath } from '../src/render.ts';
 
 function settle(session:Session,limit=15){for(let t=0;t<limit;t+=1/240){session.tick(1/240);if(!session.inShot)return;}assert.fail('Shot did not settle');}
 function spinHit(y:number,targetX=350){
@@ -28,6 +29,29 @@ test('cue prediction includes its first cushion bounce and responds to power',()
   assert.ok(rail>0&&rail<path.length-1);assert.ok(path[rail+1].y>path[rail].y);
   const length=(power:number)=>{const p=predictCuePath(balls,0,power);return p.slice(1).reduce((n,b,i)=>n+Math.hypot(b.x-p[i].x,b.y-p[i].y),0);};
   assert.ok(length(.8)>length(.2));
+});
+test('mission two full-ball preview shows a stop, forward follow and visible backward draw',()=>{
+  const balls=createLayout(missions[1]),before=structuredClone(balls),angle=Math.atan2(198-330,315-500);
+  for(const y of [0,1,-1]){
+    const path=predictCuePath(balls,angle,.45,{x:0,y});assert.ok(path.length>0&&path.length<=241);
+    const length=path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p.x-path[i].x,p.y-path[i].y),0);
+    if(y===0)assert.ok(length<1);else{
+      assert.ok(length>40&&length<=80.001,`spin ${y}: ${length}`);
+      const end=path.at(-1)!,progress=(end.x-path[0].x)*Math.cos(angle)+(end.y-path[0].y)*Math.sin(angle);
+      assert.ok(progress*y>40);
+    }
+    assert.deepEqual(balls,before);
+  }
+  const stopped=predictCuePath([ball(0,300,330),ball(1,350,330)],0,.1);
+  assert.ok(stopped.length>0);
+});
+test('Canvas cue preview draws solid fading strokes and a stun stop marker, but nothing for empty paths',()=>{
+  const strokes:{alpha:number;width:number}[]=[],arcs:number[]=[];
+  const ctx={globalAlpha:1,lineWidth:1,save(){},restore(){},beginPath(){},moveTo(){},lineTo(){},arc(_x:number,_y:number,r:number){arcs.push(r);},stroke(){strokes.push({alpha:this.globalAlpha,width:this.lineWidth});}} as unknown as CanvasRenderingContext2D;
+  drawCuePath(ctx,[]);assert.equal(strokes.length,0);
+  drawCuePath(ctx,[{x:100,y:100}]);assert.deepEqual(arcs,[5]);assert.equal(strokes.length,1);
+  strokes.length=0;drawCuePath(ctx,[{x:100,y:100},{x:110,y:100},{x:120,y:100}]);
+  assert.equal(strokes.length,2);assert.equal(strokes[0].width,3);assert.ok(strokes[0].alpha>strokes[1].alpha&&strokes[1].alpha>.25);
 });
 test('cue prediction is empty for no contact, unreachable targets, inactive cue or invalid input',()=>{
   assert.deepEqual(predictCuePath([ball(0,300,330)],0,.5),[]);

@@ -52,10 +52,6 @@ export function render(ctx:CanvasRenderingContext2D,state:RenderState,design:Tab
     ctx.beginPath();ctx.arc(trace.x,trace.y,TABLE.radius,0,Math.PI*2);ctx.strokeStyle='#e1f5de';ctx.globalAlpha=.55;ctx.stroke();
     if(trace.target){const target=trace.target;const a=Math.atan2(target.y-trace.y,target.x-trace.x);ctx.setLineDash([3,6]);ctx.beginPath();ctx.moveTo(target.x,target.y);ctx.lineTo(target.x+Math.cos(a)*95,target.y+Math.sin(a)*95);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=.75;ctx.beginPath();ctx.arc(target.x,target.y,18,0,Math.PI*2);ctx.strokeStyle='#f3ce8a';ctx.stroke();}
     ctx.restore();
-    const path=predictCuePath(state.balls,state.angle,state.power,state.spin);
-    ctx.save();ctx.strokeStyle='#ffffff';ctx.lineWidth=1;
-    for(let i=1;i<path.length;i++){ctx.globalAlpha=.8*(1-(i-1)/(path.length-1));ctx.beginPath();ctx.moveTo(path[i-1].x,path[i-1].y);ctx.lineTo(path[i].x,path[i].y);ctx.stroke();}
-    ctx.restore();
     const pull=state.charge>0?state.power*70:0,dx=Math.cos(state.angle),dy=Math.sin(state.angle);
     ctx.save();ctx.translate(cue.x-dx*(28+pull),cue.y-dy*(28+pull));ctx.rotate(state.angle+Math.PI);
     roundRect(ctx,0,-2,192,4,2,'#b99c69');roundRect(ctx,78,-3,116,6,2,'#6b443d');roundRect(ctx,190,-3,5,6,1,'#22202b');roundRect(ctx,-3,-2.5,5,5,1,'#a0d7cf');ctx.restore();
@@ -66,5 +62,13 @@ export function render(ctx:CanvasRenderingContext2D,state:RenderState,design:Tab
     for(let i=0;i<b.trail.length;i++){const p=b.trail[i];ctx.globalAlpha=(i/b.trail.length)*.12;circle(ctx,p.x,p.y,TABLE.radius*(i/b.trail.length),BALL_COLORS[b.id]);}
     ctx.globalAlpha=1;drawBall(ctx,b);
   }
+  if(state.aiming&&cue.active)drawCuePath(ctx,predictCuePath(state.balls,state.angle,state.power,state.spin));
   for(const p of state.particles){ctx.globalAlpha=p.life;circle(ctx,p.x,p.y,2.5*p.life+.5,p.color);}ctx.globalAlpha=1;
+}
+export function drawCuePath(ctx:CanvasRenderingContext2D,path:{x:number;y:number}[]){
+  if(!path.length)return;
+  ctx.save();ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.lineCap='round';
+  for(let i=1;i<path.length;i++){ctx.globalAlpha=.95-.7*(i-1)/(path.length-1);ctx.beginPath();ctx.moveTo(path[i-1].x,path[i-1].y);ctx.lineTo(path[i].x,path[i].y);ctx.stroke();}
+  if(Math.hypot(path.at(-1)!.x-path[0].x,path.at(-1)!.y-path[0].y)<3){ctx.globalAlpha=.95;ctx.lineWidth=2;ctx.beginPath();ctx.arc(path[0].x,path[0].y,5,0,Math.PI*2);ctx.stroke();}
+  ctx.restore();
 }
