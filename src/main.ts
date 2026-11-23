@@ -13,6 +13,7 @@ import { CameraRig } from './camera-rig.ts';
 import { CueLocker } from './cue-locker.ts';
 import { OfflineGame } from './offline.ts';
 import { seededRandom, type CpuDifficulty } from './cpu.ts';
+import { setupOnboarding } from './onboarding.ts';
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const canvas=$<HTMLCanvasElement>('game'),powerInput=$<HTMLInputElement>('power');
@@ -23,6 +24,7 @@ let online:OnlineGame|undefined;
 let offline:OfflineGame|undefined,cpuResultShown=false;
 const cpuDialog=$<HTMLDialogElement>('cpu-dialog');
 const guide=$<HTMLDialogElement>('guide-dialog'),pauseDialog=$<HTMLDialogElement>('pause-dialog');
+const onboarding=$<HTMLDialogElement>('onboarding-dialog');
 const audio=new ClubAudio();
 interface Record {stars:number;shots:number;}
 let records:(Record|null)[]=Array(12).fill(null);
@@ -253,6 +255,7 @@ $('fullscreen-button').addEventListener('click',()=>{if(og.env.embedded&&og.env.
 $('resume-button').addEventListener('click',()=>setPause(false));
 pauseDialog.addEventListener('cancel',e=>{e.preventDefault();setPause(false);});
 window.addEventListener('keydown',e=>{
+  if(onboarding.open)return;
   // Escape exits the editor even while a range or text input owns focus.
   if(e.code==='Escape'&&!guide.open&&!pauseDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
   if((e.target as HTMLElement).matches('input,textarea,select'))return;
@@ -296,6 +299,9 @@ function frame(now:number){
 }
 online=new OnlineGame({change:()=>{lastHud='';updateHud();},table:(id,locked)=>{if(room.selected.id!==id)room.select(id);room.setLocked(locked);},tableId:()=>room.selected.id,events:handleEvents,shot:shotEffect,exit:()=>loadMission(index)});
 room.onSelect=()=>{$('title-table-name').textContent=room.selected.name;online?.tableChanged();};
-loadMission(0);setTitle(true);if(new URLSearchParams(location.search).has('room')){setTitle(false);online.enter();}requestAnimationFrame(frame);
+loadMission(0);setTitle(true);
+if(new URLSearchParams(location.search).has('room')){setTitle(false);online.enter();}
+else setupOnboarding(onboarding,$('title-play'));
+requestAnimationFrame(frame);
 // Platform handshake never blocks the first frame or standalone play.
 void og.init().then(()=>{og.ready();og.onPause(value=>{hostPaused=value;cancelCharge();});og.audio.onHostMute(value=>{audio.hostMuted=value;});}).catch(()=>{});

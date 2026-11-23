@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="./src/cinematic.css" />
   <link rel="stylesheet" href="./src/spin.css" />
   <link rel="stylesheet" href="./src/tournament.css" />
+  <link rel="stylesheet" href="./src/onboarding.css" />
 </head>
 <body class="title-open">
   <header class="topbar">
@@ -56,6 +57,20 @@
     <div class="title-table"><p>THE RELIC COLLECTION <span>ᛟ</span></p><div><button id="title-prev" aria-label="Preview previous table">←</button><span id="title-table-name">The Heritage</span><button id="title-next" aria-label="Preview next table">→</button></div><small>A room for rivals. A table for legends.</small></div>
     <p class="title-bottom">EST. MMXXVI <span>PRECISION & FINESSE</span></p>
   </section>
+  <dialog id="onboarding-dialog" aria-label="Quick start">
+    <p class="eyebrow">THE LANTERN GUILD / QUICK START</p>
+    <div class="onboarding-progress" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <div class="onboarding-step" aria-live="polite" aria-atomic="true">
+      <p class="onboarding-count" id="onboarding-count"></p>
+      <h2 id="onboarding-title"></h2>
+      <p class="onboarding-detail" id="onboarding-detail"></p>
+    </div>
+    <div class="onboarding-actions">
+      <button type="button" class="text-button" id="onboarding-skip">Skip tour</button>
+      <button type="button" class="text-button" id="onboarding-back" hidden>Back</button>
+      <button type="button" class="primary-button" id="onboarding-next" autofocus><span id="onboarding-next-label">Next</span><span aria-hidden="true">↗</span></button>
+    </div>
+  </dialog>
   <dialog id="guide-dialog"><button class="dialog-close" aria-label="Close guide">×</button><p class="eyebrow">WELCOME TO THE CLUB</p><h2>A little finesse.<br>A lot of possibility.</h2><div class="guide-step"><b>01</b><div><h3>Find the line</h3><p>Move your mouse over the table to aim the cue. The dotted line previews the first collision. Click briefly to lock your aim.</p></div></div><div class="guide-step"><b>02</b><div><h3>Feel the power</h3><p>Hold the mouse button on the table to charge, then release to shoot. Use the spin ball (W/S top/back, A/D side, C centre) for follow, draw or cushion english; long shots lose draw. Or set the power slider and press Strike. Hold and release Space for keyboard play.</p></div></div><div class="guide-step"><b>03</b><div><h3>Make it count</h3><p>Finish each mission within its shot limit. Fewer shots earn more stars. A scratch costs a shot and returns the cue ball. Bank shots require the object ball to touch a cushion before it drops.</p></div></div><div class="keyboard-guide"><span><kbd>←</kbd><kbd>→</kbd> Fine aim <small>(Shift = slower)</small></span><span><kbd>R</kbd> Restart</span><span><kbd>P</kbd> Pause</span><span><kbd>Esc</kbd> Cancel charge</span></div><button class="primary-button" id="close-guide">Let's play <span>↗</span></button></dialog>
   <dialog id="pause-dialog"><p class="eyebrow">TAKE YOUR TIME</p><h2>The table can wait.</h2><p>Your shot will be right here.</p><button class="primary-button" id="resume-button">Back to the table <span>↗</span></button></dialog>
   <script type="module" src="./src/main.ts"></script>
