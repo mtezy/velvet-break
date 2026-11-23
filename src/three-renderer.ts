@@ -80,7 +80,7 @@ export class PoolRenderer {
     this.scene.add(new THREE.HemisphereLight(0xc5e2ed,0x171712,.65));
     const key=new THREE.DirectionalLight(0xfff4df,1);key.position.set(-350,1100,350);this.scene.add(key);
     const fill=new THREE.DirectionalLight(0xa0d5ed,.55);fill.position.set(600,450,-600);this.scene.add(fill);
-    const practical=new THREE.SpotLight(0xffc083,2600,1600,1.03,.6,1);
+    const practical=new THREE.SpotLight(0xffb565,3200,1600,1.03,.6,1);
     practical.position.copy(lampPosition);this.scene.add(practical,practical.target);
     this.clubRoom=buildClubRoom();this.scene.add(this.clubRoom);
     this.setTable(this.design);this.scene.add(this.aim,this.targetLine,this.ghost,this.targetRing,this.calledRing,this.cue,this.sparks,this.cuePath,this.cueStop);
@@ -134,7 +134,7 @@ export class PoolRenderer {
     const map=new THREE.CanvasTexture(mapCanvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=Math.min(4,this.renderer!.capabilities.getMaxAnisotropy());
     const material=this.software?new THREE.MeshStandardMaterial({map,roughness:.13,metalness:0,envMapIntensity:1.1}):new THREE.MeshPhysicalMaterial({map,roughness:.16,metalness:0,envMapIntensity:1,clearcoat:1,clearcoatRoughness:.06});
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(TABLE.radius,32,24),material);mesh.position.set(x-600,12,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;this.scene.add(mesh);
-    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(42,42),new THREE.MeshBasicMaterial({map:this.shadowMap,transparent:true,opacity:.82,depthWrite:false}));this.scene.add(shadow);
+    const shadow=new THREE.Mesh(new THREE.PlaneGeometry(52,52),new THREE.MeshBasicMaterial({map:this.shadowMap,transparent:true,opacity:.93,depthWrite:false}));this.scene.add(shadow);
     const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;drawBallLabel(labelCanvas,id,this.phoneLabels);
     const labelMap=new THREE.CanvasTexture(labelCanvas);labelMap.colorSpace=THREE.SRGBColorSpace;
     const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:labelMap,transparent:true,depthWrite:false,toneMapped:false,fog:!this.phoneLabels}));sprite.scale.set(BALL_LABEL_SCALE,BALL_LABEL_SCALE,1);sprite.renderOrder=2;this.scene.add(sprite);
