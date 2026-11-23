@@ -10,6 +10,19 @@ import { DEFAULT_CAMERA, cameraFit, type CameraSettings } from './camera-setting
 import { buildCueModel } from './cue-model.ts';
 import { getCueDesign, type CueDesign } from './cues.ts';
 import { contactShadow } from './surfaces.ts';
+import { BALL_LABEL_SCALE, mobileBallLabelScale, type ProjectedBallLabel } from './ball-labels.ts';
+
+interface BallLabel extends ProjectedBallLabel { sprite:THREE.Sprite; texture:THREE.CanvasTexture; }
+
+function drawBallLabel(canvas:HTMLCanvasElement,id:number,phone:boolean){
+  const ctx=canvas.getContext('2d')!;
+  ctx.clearRect(0,0,128,128);
+  if(phone){
+    ctx.fillStyle=BALL_COLORS[id];ctx.beginPath();ctx.arc(64,64,60,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle='#fffff2';ctx.beginPath();ctx.arc(64,64,phone?49:60,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#101820';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 ${id>9?74:88}px Arial`;ctx.fillText(String(id),64,68);
+}
 
 /** The game uses a true 3D table and rolling spheres; a Canvas fallback keeps it playable without WebGL. */
 export class PoolRenderer {
@@ -20,8 +33,12 @@ export class PoolRenderer {
   cueDesign=getCueDesign(null);cueDisplay=new THREE.Group();cueInspection=false;cueSpin=0;
   pulses:{mesh:THREE.Mesh;age:number;duration:number;radius:number}[]=[];
   raycaster=new THREE.Raycaster();plane=new THREE.Plane(new THREE.Vector3(0,1,0),-12);
-  balls=new Map<number,{mesh:THREE.Mesh;shadow:THREE.Mesh;label:THREE.Sprite;lastX:number;lastY:number}>();
+  balls=new Map<number,{mesh:THREE.Mesh;shadow:THREE.Mesh;label:BallLabel;lastX:number;lastY:number}>();
   labels=true;orbiting=false;
+  private phoneViewport=matchMedia('(pointer: coarse) and (max-width: 520px), (pointer: coarse) and (max-height: 520px) and (max-width: 960px)');
+  private phoneLabels=false;private viewportHeight=0;
+  private visibleLabels:BallLabel[]=[];
+  private labelPosition=new THREE.Vector3();
   aim:THREE.Line;targetLine:THREE.Line;ghost:THREE.Mesh;targetRing:THREE.Mesh;cue=new THREE.Group();calledRing:THREE.Mesh;
   sparks:THREE.Points; fallback:CanvasRenderingContext2D|null=null;lastTime=0;
   shadowMap=contactShadow();
@@ -100,11 +117,39 @@ export class PoolRenderer {
     const material=this.software?new THREE.MeshStandardMaterial({map,roughness:.13,metalness:0,envMapIntensity:1.1}):new THREE.MeshPhysicalMaterial({map,roughness:.16,metalness:0,envMapIntensity:1,clearcoat:1,clearcoatRoughness:.06});
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(TABLE.radius,32,24),material);mesh.position.set(x-600,12,y-330);mesh.rotation.x=-.9;mesh.rotation.y=.1;this.scene.add(mesh);
     const shadow=new THREE.Mesh(new THREE.PlaneGeometry(42,42),new THREE.MeshBasicMaterial({map:this.shadowMap,transparent:true,opacity:.82,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.set(x-599,.4,y-328);this.scene.add(shadow);
-    const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;const lc=labelCanvas.getContext('2d')!;lc.fillStyle='#fffff2';lc.beginPath();lc.arc(64,64,60,0,Math.PI*2);lc.fill();lc.fillStyle='#101820';lc.textAlign='center';lc.textBaseline='middle';lc.font=`900 ${id>9?74:88}px Arial`;lc.fillText(String(id),64,68);const labelMap=new THREE.CanvasTexture(labelCanvas);labelMap.colorSpace=THREE.SRGBColorSpace;
-    const label=new THREE.Sprite(new THREE.SpriteMaterial({map:labelMap,transparent:true,depthWrite:false,toneMapped:false}));label.scale.set(13.5,13.5,1);label.renderOrder=2;this.scene.add(label);
+    const labelCanvas=document.createElement('canvas');labelCanvas.width=labelCanvas.height=128;drawBallLabel(labelCanvas,id,this.phoneLabels);
+    const labelMap=new THREE.CanvasTexture(labelCanvas);labelMap.colorSpace=THREE.SRGBColorSpace;
+    const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:labelMap,transparent:true,depthWrite:false,toneMapped:false,fog:!this.phoneLabels}));sprite.scale.set(BALL_LABEL_SCALE,BALL_LABEL_SCALE,1);sprite.renderOrder=2;this.scene.add(sprite);
+    const label={sprite,texture:labelMap,x:0,y:0,pixelsPerUnit:1};
     const record={mesh,shadow,label,lastX:x,lastY:y};this.balls.set(id,record);return record;
   }
-  resize(){const w=this.canvas.clientWidth,h=this.canvas.clientHeight||w*780/1200;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}}
+  resize(){
+    const w=this.canvas.clientWidth,h=this.canvas.clientHeight||w*780/1200;this.viewportHeight=h;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
+    const phoneLabels=this.phoneViewport.matches;
+    if(this.phoneLabels!==phoneLabels){
+      this.phoneLabels=phoneLabels;
+      for(const [id,{label:{sprite,texture}}] of this.balls){
+        drawBallLabel(texture.image,id,phoneLabels);texture.needsUpdate=true;
+        sprite.material.fog=!phoneLabels;sprite.material.needsUpdate=true;
+        sprite.scale.set(BALL_LABEL_SCALE,BALL_LABEL_SCALE,1);
+      }
+    }
+    if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}
+  }
+  private sizePhoneLabels(){
+    if(!this.visibleLabels.length||!this.viewportHeight)return;
+    this.camera.updateMatrixWorld();
+    const focalLength=this.viewportHeight*this.camera.projectionMatrix.elements[5]/2;
+    for(const label of this.visibleLabels){
+      const point=this.labelPosition.copy(label.sprite.position).applyMatrix4(this.camera.matrixWorldInverse);
+      label.pixelsPerUnit=focalLength/Math.max(this.camera.near,-point.z);
+      label.x=point.x*label.pixelsPerUnit;label.y=point.y*label.pixelsPerUnit;
+    }
+    for(const label of this.visibleLabels){
+      const scale=mobileBallLabelScale(label,this.visibleLabels);
+      label.sprite.scale.set(scale,scale,1);
+    }
+  }
   pointer(clientX:number,clientY:number){
     const bounds=this.canvas.getBoundingClientRect();if(!this.renderer)return{x:(clientX-bounds.left)/bounds.width*1200,y:(clientY-bounds.top)/bounds.height*660};
     this.raycaster.setFromCamera(new THREE.Vector2((clientX-bounds.left)/bounds.width*2-1,-(clientY-bounds.top)/bounds.height*2+1),this.camera);
@@ -124,13 +169,16 @@ export class PoolRenderer {
     const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode;
     for(const pulse of [...this.pulses]){pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));
-    for(const [id,record]of this.balls){record.mesh.visible=false;record.shadow.visible=false;record.label.visible=false;if(!ids.has(id)){this.scene.remove(record.mesh,record.shadow,record.label);record.mesh.geometry.dispose();(record.mesh.material as THREE.MeshStandardMaterial).map?.dispose();(record.mesh.material as THREE.Material).dispose();record.shadow.geometry.dispose();(record.shadow.material as THREE.Material).dispose();record.label.material.map?.dispose();record.label.material.dispose();this.balls.delete(id);}}
+    this.visibleLabels.length=0;
+    for(const [id,{mesh,shadow,label:{sprite,texture}}]of this.balls){mesh.visible=false;shadow.visible=false;sprite.visible=false;if(!ids.has(id)){this.scene.remove(mesh,shadow,sprite);mesh.geometry.dispose();(mesh.material as THREE.MeshStandardMaterial).map?.dispose();(mesh.material as THREE.Material).dispose();shadow.geometry.dispose();(shadow.material as THREE.Material).dispose();texture.dispose();sprite.material.dispose();this.balls.delete(id);}}
     for(const b of state.balls){let rec=this.balls.get(b.id);if(!rec)rec=this.createBall(b.id,b.x,b.y);rec.mesh.visible=b.active;rec.shadow.visible=b.active;
       const dx=b.x-rec.lastX,dz=b.y-rec.lastY,d=Math.hypot(dx,dz);if(d>0&&d<100){const axis=new THREE.Vector3(dz,0,-dx).normalize();rec.mesh.rotateOnWorldAxis(axis,d/TABLE.radius);}rec.lastX=b.x;rec.lastY=b.y;
       rec.mesh.position.set(b.x-600,12,b.y-330);rec.shadow.position.set(b.x-599,.4,b.y-328);
-      rec.label.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&!this.cueInspection&&Math.hypot(b.vx,b.vy)<10;
-      if(rec.label.visible)rec.label.position.copy(rec.mesh.position).add(this.camera.position.clone().sub(rec.mesh.position).normalize().multiplyScalar(12.6));
+      const {sprite}=rec.label;
+      sprite.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&!this.cueInspection&&Math.hypot(b.vx,b.vy)<10;
+      if(sprite.visible){sprite.position.copy(this.camera.position).sub(rec.mesh.position).normalize().multiplyScalar(12.6).add(rec.mesh.position);if(this.phoneLabels)this.visibleLabels.push(rec.label);}
     }
+    if(this.phoneLabels)this.sizePhoneLabels();
     this.cueDisplay.visible=this.cueInspection&&!this.titleMode;
     if(this.cueDisplay.visible){const direction=this.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);this.cueDisplay.position.copy(this.camera.position).addScaledVector(direction,900).addScaledVector(right,130).addScaledVector(up,this.camera.aspect<.8?95:10);this.cueDisplay.quaternion.copy(this.camera.quaternion);this.cueDisplay.rotateZ(-.12);this.cueDisplay.rotateY(this.cueSpin);this.cueDisplay.scale.setScalar(Math.min(1.2,this.camera.aspect*1.25));}
     const cue=state.balls[0],aiming=state.aiming&&cue.active&&!this.cueInspection;
