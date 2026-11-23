@@ -44,3 +44,19 @@ test('crowding or a zoomed-in camera never shrinks the original label',()=>{
   assert.equal(mobileBallLabelScale(label,[label]),BALL_LABEL_SCALE);
   assert.equal(mobileBallLabelScale(label,[label,{...label,x:2}]),BALL_LABEL_SCALE);
 });
+
+test('phone labels use the replay camera without changing the live camera',()=>{
+  const label={sprite:new Sprite(),x:0,y:0,pixelsPerUnit:1};
+  label.sprite.position.z=-100;
+  const camera=new PerspectiveCamera(90,1,1,1000),replayCamera=camera.clone();
+  replayCamera.position.z=100;
+  const renderer=Object.assign(Object.create(PoolRenderer.prototype) as PoolRenderer,{
+    camera,viewportHeight:50,labelPosition:new Vector3(),labelNeighbors:[],
+    balls:new Map([[1,{mesh:new Object3D(),label}]]),
+  });
+  renderer['sizePhoneLabels'](replayCamera);
+  assert.ok(Math.abs(label.pixelsPerUnit-.125)<1e-9);
+  assert.equal(camera.position.z,0);
+  renderer['sizePhoneLabels']();
+  assert.ok(Math.abs(label.pixelsPerUnit-.25)<1e-9);
+});

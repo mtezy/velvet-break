@@ -28,6 +28,8 @@ function drawBallLabel(canvas:HTMLCanvasElement,id:number,phone:boolean){
 export class PoolRenderer {
   renderer:THREE.WebGLRenderer|null=null;
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
+  private replayCamera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
+  private liveRotations:Map<number,THREE.Quaternion>|undefined;
   controls:OrbitControls|null=null;tableModel=new THREE.Group();design:TableDesign=getTableDesign('heritage');
   dirty=true;lastRenderKey='';view:'club'|'overhead'|'custom'='club';effects=true;customCamera:CameraSettings={...DEFAULT_CAMERA};
   cueDesign=getCueDesign(null);cueDisplay=new THREE.Group();cueInspection=false;cueSpin=0;
@@ -138,15 +140,15 @@ export class PoolRenderer {
     }
     if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}
   }
-  private sizePhoneLabels(){
+  private sizePhoneLabels(camera=this.camera){
     if(!this.viewportHeight)return;
-    this.camera.updateMatrixWorld();
-    const focalLength=this.viewportHeight*this.camera.projectionMatrix.elements[5]/2;
+    camera.updateMatrixWorld();
+    const focalLength=this.viewportHeight*camera.projectionMatrix.elements[5]/2;
     this.labelNeighbors.length=0;
     for(const {mesh,label} of this.balls.values()){
       if(!mesh.visible)continue;
-      const point=this.labelPosition.copy(label.sprite.visible?label.sprite.position:mesh.position).applyMatrix4(this.camera.matrixWorldInverse);
-      label.pixelsPerUnit=focalLength/Math.max(this.camera.near,-point.z);
+      const point=this.labelPosition.copy(label.sprite.visible?label.sprite.position:mesh.position).applyMatrix4(camera.matrixWorldInverse);
+      label.pixelsPerUnit=focalLength/Math.max(camera.near,-point.z);
       label.x=point.x*label.pixelsPerUnit;label.y=point.y*label.pixelsPerUnit;
       this.labelNeighbors.push(label);
     }
@@ -162,33 +164,60 @@ export class PoolRenderer {
     const point=new THREE.Vector3();this.raycaster.ray.intersectPlane(this.plane,point);return{x:point.x+600,y:point.z+330};
   }
   line(line:THREE.Line,from:{x:number;y:number},to:{x:number;y:number},height=14){line.geometry.setFromPoints([new THREE.Vector3(from.x-600,height,from.y-330),new THREE.Vector3(to.x-600,height,to.y-330)]);line.computeLineDistances();}
-  render(state:RenderState){
-    if(!this.renderer){if(this.fallback){this.fallback.setTransform(this.canvas.width/1200,0,0,this.canvas.height/660,0,0);renderFallback(this.fallback,state,this.design);}return;}
+  render(state:RenderState,replay?:{x:number;y:number;progress:number}){
+    if(!this.renderer){
+      if(this.fallback){
+        const ctx=this.fallback;
+        ctx.setTransform(this.canvas.width/1200,0,0,this.canvas.height/660,0,0);
+        if(replay){
+          const zoom=1.12+replay.progress*.32;
+          ctx.translate(-replay.x*(zoom-1),-replay.y*(zoom-1));ctx.scale(zoom,zoom);
+        }
+        renderFallback(ctx,state,this.design);
+      }
+      return;
+    }
+    const camera=replay?this.replayCamera:this.camera;
+    if(replay){
+      const x=(replay.x-600)*.9,z=(replay.y-330)*.9;
+      const angle=.32+replay.progress*.5,distance=(1000-replay.progress*240)*Math.max(1,.75/this.camera.aspect);
+      if(camera.aspect!==this.camera.aspect){camera.aspect=this.camera.aspect;camera.updateProjectionMatrix();}
+      camera.position.set(x+Math.sin(angle)*distance,distance*.68,z+Math.cos(angle)*distance);
+      camera.lookAt(x,14,z);
+    }
+    const changedReplay=!!this.liveRotations!==!!replay;
+    if(changedReplay){
+      if(replay)this.liveRotations=new Map([...this.balls].map(([id,b])=>[id,b.mesh.quaternion.clone()]));
+      else{
+        for(const [id,rotation] of this.liveRotations!)this.balls.get(id)?.mesh.quaternion.copy(rotation);
+        this.liveRotations=undefined;
+      }
+    }
     const dt=this.lastTime?Math.min(.2,(state.time-this.lastTime)/1000):0;this.lastTime=state.time;
     const renderKey=[this.design.id,this.cueDesign.id,this.cueInspection,this.cueSpin,state.angle,state.power,state.spin?.x,state.spin?.y,state.charge,state.aiming,state.targetPocket,...state.balls.map(b=>`${b.id}:${b.x.toFixed(2)}:${b.y.toFixed(2)}:${b.active}`)].join('|');
-    if(!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length)return;
+    if(!replay&&!changedReplay&&!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length)return;
     this.lastRenderKey=renderKey;this.dirty=false;
-    const isMoving=state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
+    const isMoving=!!replay||state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
     if(this.quality==='auto'&&isMoving){this.averageFrame=this.averageFrame*.9+dt*.1;if(++this.qualityFrames%24===0&&this.averageFrame>.055&&this.renderScale>.48){this.renderScale=Math.max(.48,this.renderScale*.86);this.renderer.setPixelRatio(this.renderScale);}}
     // A cached resting frame can be crisp without paying for it during shots/orbits.
     const scale=this.quality==='auto'&&!isMoving&&!this.orbiting?Math.max(this.renderScale,Math.min(window.devicePixelRatio,1)):this.renderScale;if(this.renderer.getPixelRatio()!==scale)this.renderer.setPixelRatio(scale);
     const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode;
-    for(const pulse of [...this.pulses]){pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
+    for(const pulse of [...this.pulses]){pulse.mesh.visible=!replay;pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));
     let hasPhoneLabels=false;
     for(const [id,{mesh,shadow,label:{sprite,texture}}]of this.balls){mesh.visible=false;shadow.visible=false;sprite.visible=false;if(!ids.has(id)){this.scene.remove(mesh,shadow,sprite);mesh.geometry.dispose();(mesh.material as THREE.MeshStandardMaterial).map?.dispose();(mesh.material as THREE.Material).dispose();shadow.geometry.dispose();(shadow.material as THREE.Material).dispose();texture.dispose();sprite.material.dispose();this.balls.delete(id);}}
     for(const b of state.balls){let rec=this.balls.get(b.id);if(!rec)rec=this.createBall(b.id,b.x,b.y);rec.mesh.visible=b.active;rec.shadow.visible=b.active;
-      const dx=b.x-rec.lastX,dz=b.y-rec.lastY,d=Math.hypot(dx,dz);if(d>0&&d<100){const axis=new THREE.Vector3(dz,0,-dx).normalize();rec.mesh.rotateOnWorldAxis(axis,d/TABLE.radius);}rec.lastX=b.x;rec.lastY=b.y;
+      const dx=b.x-rec.lastX,dz=b.y-rec.lastY,d=Math.hypot(dx,dz);if(!changedReplay&&d>0&&d<100){const axis=new THREE.Vector3(dz,0,-dx).normalize();rec.mesh.rotateOnWorldAxis(axis,d/TABLE.radius);}rec.lastX=b.x;rec.lastY=b.y;
       rec.mesh.position.set(b.x-600,12,b.y-330);rec.shadow.position.set(b.x-599,.4,b.y-328);
       const {sprite}=rec.label;
-      sprite.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&!this.cueInspection&&Math.hypot(b.vx,b.vy)<10;
+      sprite.visible=this.labels&&b.id!==0&&b.active&&!this.titleMode&&(!this.cueInspection||!!replay)&&Math.hypot(b.vx,b.vy)<10;
       if(sprite.visible){
-        sprite.position.copy(this.camera.position).sub(rec.mesh.position).normalize().multiplyScalar(12.6).add(rec.mesh.position);
+        sprite.position.copy(camera.position).sub(rec.mesh.position).normalize().multiplyScalar(12.6).add(rec.mesh.position);
         if(this.phoneLabels)hasPhoneLabels=true;
       }
     }
-    if(hasPhoneLabels)this.sizePhoneLabels();
-    this.cueDisplay.visible=this.cueInspection&&!this.titleMode;
+    if(hasPhoneLabels)this.sizePhoneLabels(camera);
+    this.cueDisplay.visible=this.cueInspection&&!this.titleMode&&!replay;
     if(this.cueDisplay.visible){const direction=this.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);this.cueDisplay.position.copy(this.camera.position).addScaledVector(direction,900).addScaledVector(right,130).addScaledVector(up,this.camera.aspect<.8?95:10);this.cueDisplay.quaternion.copy(this.camera.quaternion);this.cueDisplay.rotateZ(-.12);this.cueDisplay.rotateY(this.cueSpin);this.cueDisplay.scale.setScalar(Math.min(1.2,this.camera.aspect*1.25));}
     const cue=state.balls[0],aiming=state.aiming&&cue.active&&!this.cueInspection;
     this.cue.visible=this.aim.visible=this.ghost.visible=aiming;this.targetRing.visible=this.targetLine.visible=false;
@@ -213,6 +242,6 @@ export class PoolRenderer {
     const positions:number[]=[],colors:number[]=[];for(const p of state.particles){positions.push(p.x-600,15+(1-p.life)*35,p.y-330);const c=new THREE.Color(p.color);colors.push(c.r*p.life,c.g*p.life,c.b*p.life);}
     if(this.effects)for(const b of state.balls)if(b.active&&Math.hypot(b.vx,b.vy)>140)for(let i=0;i<b.trail.length;i++){const p=b.trail[i];positions.push(p.x-600,3,p.y-330);const c=new THREE.Color(this.design.trim),fade=i/b.trail.length*.35;colors.push(c.r*fade,c.g*fade,c.b*fade);}
     this.sparks.geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));this.sparks.geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));this.sparks.geometry.computeBoundingSphere();
-    this.renderer.render(this.scene,this.camera);
+    this.renderer.render(this.scene,camera);
   }
 }
