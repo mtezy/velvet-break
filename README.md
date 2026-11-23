@@ -2,6 +2,10 @@
 
 A late-night pool club. Twelve missions. One perfect shot.
 
+## Club audio
+
+Use **Sound** in the header to hear the original late-night jazz loop, cue strikes, ball clacks, cushion knocks and pocket drops. The adjacent **Volume** slider sets both music and effects; muting keeps your level for when you turn sound back on. OpenGame host mute always takes priority. All audio is synthesized locally, so no tracks or samples need to be downloaded.
+
 ## Tournament visual update
 
 Club and Overhead now frame the playing surface more closely, with shaped cushion noses, bevelled walnut rails, fitted leather pocket mouths, recessed dark wells and worsted teal cloth. A bordered club rug, darker room and balanced warm/cool light keep the table in focus. The floating HUD is quieter and leaves the cloth visible.
