@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { gunzipSync } from 'node:zlib';
 import { HalfFloatType, Texture } from 'three';
 import { decodeBallLampEnvironment, resinBallMaterial, setResinBallQuality } from '../src/ball-finish.ts';
 
@@ -24,7 +23,7 @@ test('economy drops the clearcoat without removing the ball art or lamp reflecti
 });
 
 test('the offline lamp PMREM contains six 256-pixel HDR faces and their roughness mips',()=>{
-  const bytes=gunzipSync(readFileSync(new URL('../src/ball-lamps.bin',import.meta.url)));
+  const bytes=readFileSync(new URL('../src/ball-lamps.bin',import.meta.url));
   const cubemap=decodeBallLampEnvironment(Uint8Array.from(bytes).buffer);
   assert.equal(cubemap.type,HalfFloatType);
   assert.equal(cubemap.isPMREMTexture,true);

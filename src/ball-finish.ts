@@ -22,9 +22,8 @@ export function decodeBallLampEnvironment(data:ArrayBuffer){
 
 export async function loadBallLampEnvironment(){
   const response=await fetch(new URL('./ball-lamps.bin',import.meta.url));
-  if(!response.ok||!response.body)throw Error('Could not load ball lamp cubemap');
-  const stream=response.body.pipeThrough(new DecompressionStream('gzip'));
-  return decodeBallLampEnvironment(await new Response(stream).arrayBuffer());
+  if(!response.ok)throw Error('Could not load ball lamp cubemap');
+  return decodeBallLampEnvironment(await response.arrayBuffer());
 }
 
 export function resinBallMaterial(map:THREE.Texture,envMap:THREE.Texture,economy:boolean){
