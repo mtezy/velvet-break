@@ -8,7 +8,7 @@
     --phone-header: calc(56px + var(--phone-top));
     --phone-tabs: calc(2 * var(--touch-target) + 17px + var(--phone-bottom));
     --phone-shot-bottom: calc(var(--phone-tabs) + 8px);
-    --phone-view-bottom: calc(var(--phone-shot-bottom) + 84px);
+    --phone-view-bottom: calc(var(--phone-shot-bottom) + 96px);
     --phone-view-height: calc(2 * var(--touch-target) + 6px);
     --phone-status-bottom: calc(var(--phone-view-bottom) + var(--phone-view-height) + 6px);
   }
@@ -65,6 +65,13 @@
     height: auto;
   }
   .title-open .canvas-wrap { inset: 0; height: 100dvh; }
+  .canvas-wrap:has(.result-overlay:not(.hidden)) { z-index: 6; }
+  .result-overlay {
+    inset: var(--phone-header) 0 var(--phone-tabs);
+    align-items: safe center;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
   .table-status { bottom: var(--phone-status-bottom); font-size: 7px; }
 
   .shot-controls {
@@ -76,6 +83,7 @@
   }
   .spin-control { grid-template-columns: var(--touch-target) var(--touch-target); gap: 0; }
   #spin-picker { width: var(--touch-target); height: var(--touch-target); grid-row: span 2; }
+  #spin-reset { min-height: var(--touch-target); }
   #spin-value { font-size: 7px; }
   .power-label, .power-control input, .power-ends { margin: 0; }
   .power-control input { display: block; }
@@ -87,6 +95,8 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
   }
+  .view-toolbar .camera-controls { padding: 0; gap: 0; }
+  .view-toolbar > button, .view-toolbar > :is(#quality-button, #labels-button, #replay-toggle) { grid-column: auto; }
   .view-toolbar .camera-controls button, .view-toolbar #effects-button,
   .view-toolbar #quality-button, .view-toolbar #camera-button,
   .view-toolbar #labels-button, .view-toolbar #replay-toggle {
@@ -105,6 +115,7 @@
     max-width: none;
     max-height: none;
   }
+  .campaign-panel { align-self: stretch; }
   .table-room, .online-panel, .camera-panel, .online-panel.connected {
     bottom: auto;
     max-height: calc(100dvh - var(--phone-header) - var(--phone-tabs) - 16px);
@@ -128,12 +139,13 @@
     }
     .view-toolbar {
       display: flex;
+      flex-wrap: nowrap;
       overflow-x: auto;
       border-radius: 6px;
       scrollbar-width: thin;
     }
     .view-toolbar > button { flex: 0 0 66px; }
-    .view-toolbar .camera-controls { flex: 0 0 65%; }
+    .view-toolbar .camera-controls { flex: 0 0 max(65%, calc(4 * var(--touch-target) + 2px)); }
     .title-open .title-screen {
       display: flex;
       flex-direction: column;
