@@ -11,6 +11,7 @@ import { buildCueModel } from './cue-model.ts';
 import { getCueDesign, type CueDesign } from './cues.ts';
 import { contactShadow } from './surfaces.ts';
 import { BALL_LABEL_SCALE, mobileBallLabelScale, type ProjectedBallLabel } from './ball-labels.ts';
+import { titleCameraPosition } from './title-camera.ts';
 
 interface BallLabel extends ProjectedBallLabel { sprite:THREE.Sprite; texture:THREE.CanvasTexture; }
 
@@ -28,6 +29,10 @@ function drawBallLabel(canvas:HTMLCanvasElement,id:number,phone:boolean){
 export class PoolRenderer {
   renderer:THREE.WebGLRenderer|null=null;
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
+  private titleCamera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
+  private titleMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  private titleStarted:number|undefined;
+  private lastTitleRender=-Infinity;
   private replayCamera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
   private liveRotations:Map<number,THREE.Quaternion>|undefined;
   controls:OrbitControls|null=null;tableModel=new THREE.Group();design:TableDesign=getTableDesign('heritage');
@@ -83,6 +88,7 @@ export class PoolRenderer {
     // radiance map too. This is not a live reflection or an extra frame pass.
     const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.025).texture;this.scene.environmentIntensity=.4;studio.dispose();pmrem.dispose();
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
+    this.titleMotion.addEventListener('change',()=>{this.titleStarted=undefined;this.dirty=true;});
     this.resize();
   }
   material(color:string|number,roughness=.7,metalness=0){return new THREE.MeshStandardMaterial({color,roughness,metalness});}
@@ -98,7 +104,12 @@ export class PoolRenderer {
     if(this.controls)this.controls.minPolarAngle=.00001;this.camera.position.set(x+Math.sin(az)*Math.cos(el)*distance,Math.sin(el)*distance,z+Math.cos(az)*Math.cos(el)*distance);this.controls?.target.set(x,0,z);this.camera.lookAt(x,0,z);this.controls?.update();this.dirty=true;
   }
   cameraSettings():CameraSettings{const target=this.controls?.target??new THREE.Vector3(),offset=this.camera.position.clone().sub(target),distance=offset.length(),azimuth=Math.atan2(offset.x,offset.z)*180/Math.PI,elevation=Math.max(25,Math.min(90,Math.asin(offset.y/distance)*180/Math.PI));return{azimuth,elevation,distance:Math.max(1100,Math.min(2600,distance/cameraFit(azimuth,elevation,this.camera.aspect))),targetX:THREE.MathUtils.clamp(target.x,-400,400),targetZ:THREE.MathUtils.clamp(target.z,-300,300)};}
-  setTitleMode(value:boolean){this.titleMode=value;if(this.controls)this.controls.enabled=!value;if(value){this.camera.position.set(1100,420,1390);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;}
+  setTitleMode(value:boolean){
+    if(value===this.titleMode)return;
+    this.titleMode=value;this.titleStarted=undefined;
+    if(this.controls)this.controls.enabled=!value;
+    this.dirty=true;
+  }
   setQuality(value:'auto'|'high'|'economy'){
     this.quality=value;this.renderScale=value==='economy'?.6:value==='high'?Math.min(window.devicePixelRatio,1.5):this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer?.setPixelRatio(this.renderScale);this.dirty=true;
   }
@@ -128,7 +139,10 @@ export class PoolRenderer {
     const record={mesh,shadow,label,lastX:x,lastY:y};this.balls.set(id,record);return record;
   }
   resize(){
-    const w=this.canvas.clientWidth,h=this.canvas.clientHeight||w*780/1200;this.viewportHeight=h;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
+    const w=this.canvas.clientWidth,h=this.canvas.clientHeight||w*780/1200;
+    const aspect=w/h,refit=aspect!==this.camera.aspect;
+    this.viewportHeight=h;this.camera.aspect=this.titleCamera.aspect=aspect;
+    this.camera.updateProjectionMatrix();this.titleCamera.updateProjectionMatrix();
     const phoneLabels=this.phoneViewport.matches;
     if(this.phoneLabels!==phoneLabels){
       this.phoneLabels=phoneLabels;
@@ -138,7 +152,8 @@ export class PoolRenderer {
         sprite.scale.set(BALL_LABEL_SCALE,BALL_LABEL_SCALE,1);
       }
     }
-    if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}
+    if(refit)this.setView(this.view);
+    this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}
   }
   private sizePhoneLabels(camera=this.camera){
     if(!this.viewportHeight)return;
@@ -177,7 +192,8 @@ export class PoolRenderer {
       }
       return;
     }
-    const camera=replay?this.replayCamera:this.camera;
+    const title=!replay&&this.titleMode,animateTitle=title&&!this.titleMotion.matches;
+    const camera=replay?this.replayCamera:title?this.titleCamera:this.camera;
     if(replay){
       const x=(replay.x-600)*.9,z=(replay.y-330)*.9;
       const angle=.32+replay.progress*.5,distance=(1000-replay.progress*240)*Math.max(1,.75/this.camera.aspect);
@@ -195,12 +211,20 @@ export class PoolRenderer {
     }
     const dt=this.lastTime?Math.min(.2,(state.time-this.lastTime)/1000):0;this.lastTime=state.time;
     const renderKey=[this.design.id,this.cueDesign.id,this.cueInspection,this.cueSpin,state.angle,state.power,state.spin?.x,state.spin?.y,state.charge,state.aiming,state.targetPocket,...state.balls.map(b=>`${b.id}:${b.x.toFixed(2)}:${b.y.toFixed(2)}:${b.active}`)].join('|');
-    if(!replay&&!changedReplay&&!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length)return;
+    const unchanged=!replay&&!changedReplay&&!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length;
+    if(unchanged&&(!animateTitle||state.time-this.lastTitleRender<1000/(this.quality==='high'?30:24)-1))return;
     this.lastRenderKey=renderKey;this.dirty=false;
-    const isMoving=!!replay||state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
+    const isMoving=animateTitle||!!replay||state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
     if(this.quality==='auto'&&isMoving){this.averageFrame=this.averageFrame*.9+dt*.1;if(++this.qualityFrames%24===0&&this.averageFrame>.055&&this.renderScale>.48){this.renderScale=Math.max(.48,this.renderScale*.86);this.renderer.setPixelRatio(this.renderScale);}}
     // A cached resting frame can be crisp without paying for it during shots/orbits.
-    const scale=this.quality==='auto'&&!isMoving&&!this.orbiting?Math.max(this.renderScale,Math.min(window.devicePixelRatio,1)):this.renderScale;if(this.renderer.getPixelRatio()!==scale)this.renderer.setPixelRatio(scale);
+    const scale=this.quality==='auto'?(animateTitle?Math.min(this.renderScale,.85):!isMoving&&!this.orbiting?Math.max(this.renderScale,Math.min(window.devicePixelRatio,1)):this.renderScale):this.renderScale;if(this.renderer.getPixelRatio()!==scale)this.renderer.setPixelRatio(scale);
+    if(title){
+      this.titleStarted??=state.time;
+      const {x,y,z}=titleCameraPosition(animateTitle?(state.time-this.titleStarted)/1000:0,camera.aspect);
+      camera.position.set(x,y,z);camera.lookAt(-70,20,-230);
+      this.lastTitleRender=state.time;
+      if(unchanged){this.renderer.render(this.scene,camera);return;}
+    }
     const canopy=this.clubRoom.getObjectByName('lamp-canopy');if(canopy)canopy.visible=this.titleMode;
     for(const pulse of [...this.pulses]){pulse.mesh.visible=!replay;pulse.age+=dt;const t=pulse.age/pulse.duration;pulse.mesh.scale.setScalar(5+pulse.radius*t);(pulse.mesh.material as THREE.MeshBasicMaterial).opacity=Math.max(0,(1-t)*.7);if(t>=1||!this.effects){this.scene.remove(pulse.mesh);pulse.mesh.geometry.dispose();(pulse.mesh.material as THREE.Material).dispose();this.pulses.splice(this.pulses.indexOf(pulse),1);}}
     const ids=new Set(state.balls.map(b=>b.id));
