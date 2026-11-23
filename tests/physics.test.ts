@@ -1,10 +1,90 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ball, simulate, moving, strike, aimTrace, respot, TABLE } from '../src/physics.ts';
+import { ball, simulate, moving, strike, aimTrace, respot, TABLE, clampSpin, predictCuePath } from '../src/physics.ts';
 import { Session } from '../src/session.ts';
 import { missions, createLayout, practiceLayout } from '../src/missions.ts';
+import { drawCuePath } from '../src/render.ts';
 
 function settle(session:Session,limit=15){for(let t=0;t<limit;t+=1/240){session.tick(1/240);if(!session.inShot)return;}assert.fail('Shot did not settle');}
+function spinHit(y:number,targetX=350){
+  const cue=ball(0,300,330),target=ball(1,targetX,330);strike(cue,0,.6,{x:0,y});
+  for(let i=0;i<1200;i++){const events=simulate([cue,target],1/240);if(events.some(e=>e.type==='collision'))return {cue,target};}
+  assert.fail('Expected object contact');
+}
+test('predicted stun, follow and draw directions match the fixed-step contact simulation',()=>{
+  for(const y of [0,1,-1]){
+    const balls=[ball(0,300,330),ball(1,370,340)],before=structuredClone(balls);
+    const path=predictCuePath(balls,0,.6,{x:0,y});assert.ok(path.length>1);assert.deepEqual(balls,before);
+    const cue=balls[0];strike(cue,0,.6,{x:0,y});
+    for(let i=0;i<2400&&!cue.spinContact;i++)simulate(balls,1/240);
+    assert.equal(cue.spinContact,true);
+    const predicted=Math.atan2(path[1].y-path[0].y,path[1].x-path[0].x),actual=Math.atan2(cue.vy,cue.vx);
+    assert.ok(Math.abs(Math.atan2(Math.sin(predicted-actual),Math.cos(predicted-actual)))<3*Math.PI/180);
+    const length=path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p.x-path[i].x,p.y-path[i].y),0);assert.ok(length<=80.001);
+  }
+});
+test('cue prediction includes its first cushion bounce and responds to power',()=>{
+  const balls=[ball(0,300,140),ball(1,370,150)];
+  const path=predictCuePath(balls,0,.8),rail=path.findIndex(p=>p.y===TABLE.top+TABLE.radius);
+  assert.ok(rail>0&&rail<path.length-1);assert.ok(path[rail+1].y>path[rail].y);
+  const length=(power:number)=>{const p=predictCuePath(balls,0,power);return p.slice(1).reduce((n,b,i)=>n+Math.hypot(b.x-p[i].x,b.y-p[i].y),0);};
+  assert.ok(length(.8)>length(.2));
+});
+test('mission two full-ball preview shows a stop, forward follow and visible backward draw',()=>{
+  const balls=createLayout(missions[1]),before=structuredClone(balls),angle=Math.atan2(198-330,315-500);
+  for(const y of [0,1,-1]){
+    const path=predictCuePath(balls,angle,.45,{x:0,y});assert.ok(path.length>0&&path.length<=241);
+    const length=path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p.x-path[i].x,p.y-path[i].y),0);
+    if(y===0)assert.ok(length<1);else{
+      assert.ok(length>40&&length<=80.001,`spin ${y}: ${length}`);
+      const end=path.at(-1)!,progress=(end.x-path[0].x)*Math.cos(angle)+(end.y-path[0].y)*Math.sin(angle);
+      assert.ok(progress*y>40);
+    }
+    assert.deepEqual(balls,before);
+  }
+  const stopped=predictCuePath([ball(0,300,330),ball(1,350,330)],0,.1);
+  assert.ok(stopped.length>0);
+});
+test('Canvas cue preview draws solid fading strokes and a stun stop marker, but nothing for empty paths',()=>{
+  const strokes:{alpha:number;width:number}[]=[],arcs:number[]=[];
+  const ctx={globalAlpha:1,lineWidth:1,save(){},restore(){},beginPath(){},moveTo(){},lineTo(){},arc(_x:number,_y:number,r:number){arcs.push(r);},stroke(){strokes.push({alpha:this.globalAlpha,width:this.lineWidth});}} as unknown as CanvasRenderingContext2D;
+  drawCuePath(ctx,[]);assert.equal(strokes.length,0);
+  drawCuePath(ctx,[{x:100,y:100}]);assert.deepEqual(arcs,[5]);assert.equal(strokes.length,1);
+  strokes.length=0;drawCuePath(ctx,[{x:100,y:100},{x:110,y:100},{x:120,y:100}]);
+  assert.equal(strokes.length,2);assert.equal(strokes[0].width,3);assert.ok(strokes[0].alpha>strokes[1].alpha&&strokes[1].alpha>.25);
+});
+test('cue prediction is empty for no contact, unreachable targets, inactive cue or invalid input',()=>{
+  assert.deepEqual(predictCuePath([ball(0,300,330)],0,.5),[]);
+  assert.deepEqual(predictCuePath([ball(0,150,330),ball(1,1000,330)],0,0),[]);
+  const cue=ball(0,300,330);cue.active=false;assert.deepEqual(predictCuePath([cue,ball(1,350,330)],0,.5),[]);
+  assert.deepEqual(predictCuePath([ball(0,300,330)],NaN,.5),[]);
+  assert.deepEqual(predictCuePath([ball(0,300,330)],0,.5,{x:2,y:0}),[]);
+});
+test('full-hit draw reverses, follow continues forward, and centre stun nearly stops',()=>{
+  assert.ok(spinHit(-1).cue.vx < -350);
+  assert.ok(spinHit(1).cue.vx > 350);
+  assert.ok(Math.abs(spinHit(0).cue.vx)<20);
+});
+test('long-distance draw loses most of its contact effect',()=>{
+  const short=spinHit(-1),long=spinHit(-1,900);
+  assert.ok(Math.abs(long.cue.vx/long.target.vx)<Math.abs(short.cue.vx/short.target.vx)*.2);
+});
+test('side english changes cushion angle in opposite directions and decays at the rail',()=>{
+  const rebound=(x:number)=>{const cue=ball(0,500,103);strike(cue,-Math.PI/2,.5,{x,y:0});simulate([cue],1/240);return cue;};
+  const left=rebound(-1),centre=rebound(0),right=rebound(1);
+  assert.ok(left.vx>centre.vx+200);assert.ok(right.vx<centre.vx-200);
+  assert.ok(left.vy>0&&right.vy>0);assert.ok(Math.abs(right.spin!.x)<.55);
+});
+test('spin clamps to the disc and explicit centre matches an omitted spin exactly',()=>{
+  assert.ok(Math.hypot(...Object.values(clampSpin({x:1,y:1})))<=1);
+  assert.deepEqual(clampSpin({x:NaN,y:Infinity}),{x:0,y:0});
+  const a=ball(0,300,330),b=ball(0,300,330);strike(a,.3,.5);strike(b,.3,.5,{x:0,y:0});
+  for(let i=0;i<500;i++){simulate([a],1/240);simulate([b],1/240);}assert.deepEqual(a,b);
+});
+test('vertical spin applies only on the first object contact',()=>{
+  const {cue}=spinHit(1);assert.equal(cue.spinContact,true);assert.equal(cue.spin!.y,0);
+  const target=ball(2,cue.x+23,cue.y);cue.spin={x:0,y:1};const before=cue.vx;simulate([cue,target],1/240);assert.ok(cue.vx<before*.05);
+});
 test('equal-mass head-on collision transfers momentum without increasing energy',()=>{
   const a=ball(0,300,330),b=ball(1,323,330);a.vx=600;
   const energy=600**2;simulate([a,b],1/240);

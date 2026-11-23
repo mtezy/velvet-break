@@ -1,7 +1,7 @@
-import { TABLE, POCKETS, BALL_COLORS, aimTrace, type Ball } from './physics.ts';
+import { TABLE, POCKETS, BALL_COLORS, aimTrace, predictCuePath, type Ball, type Spin } from './physics.ts';
 import { TABLE_DESIGNS, type TableDesign } from './tables.ts';
 export interface Particle {x:number;y:number;vx:number;vy:number;life:number;color:string;}
-export interface RenderState {balls:Ball[];angle:number;power:number;charge:number;aiming:boolean;targetPocket?:number;particles:Particle[];time:number;}
+export interface RenderState {balls:Ball[];angle:number;power:number;spin?:Spin;charge:number;aiming:boolean;targetPocket?:number;particles:Particle[];time:number;}
 const ink = '#c5eedc';
 function roundRect(ctx:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,r:number,fill:string,stroke?:string) {
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}
@@ -62,5 +62,13 @@ export function render(ctx:CanvasRenderingContext2D,state:RenderState,design:Tab
     for(let i=0;i<b.trail.length;i++){const p=b.trail[i];ctx.globalAlpha=(i/b.trail.length)*.12;circle(ctx,p.x,p.y,TABLE.radius*(i/b.trail.length),BALL_COLORS[b.id]);}
     ctx.globalAlpha=1;drawBall(ctx,b);
   }
+  if(state.aiming&&cue.active)drawCuePath(ctx,predictCuePath(state.balls,state.angle,state.power,state.spin));
   for(const p of state.particles){ctx.globalAlpha=p.life;circle(ctx,p.x,p.y,2.5*p.life+.5,p.color);}ctx.globalAlpha=1;
+}
+export function drawCuePath(ctx:CanvasRenderingContext2D,path:{x:number;y:number}[]){
+  if(!path.length)return;
+  ctx.save();ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.lineCap='round';
+  for(let i=1;i<path.length;i++){ctx.globalAlpha=.95-.7*(i-1)/(path.length-1);ctx.beginPath();ctx.moveTo(path[i-1].x,path[i-1].y);ctx.lineTo(path[i].x,path[i].y);ctx.stroke();}
+  if(Math.hypot(path.at(-1)!.x-path[0].x,path.at(-1)!.y-path[0].y)<3){ctx.globalAlpha=.95;ctx.lineWidth=2;ctx.beginPath();ctx.arc(path[0].x,path[0].y,5,0,Math.PI*2);ctx.stroke();}
+  ctx.restore();
 }

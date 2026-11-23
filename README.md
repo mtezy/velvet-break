@@ -14,6 +14,14 @@ Eight selectable custom builds now have actual cabinet depth, recessed pockets, 
 
 The rune-forged interface includes a relic vault, perspective 3D/overhead camera controls, right-drag orbit and wheel zoom. Balls have enamel reflections, texture-mapped numbers/stripes that roll with the sphere, and a spotted cue ball. Optional shot runes, impact sparks, trails, pocket rings and victory effects respect reduced-motion defaults.
 
+## Offline VS CPU
+
+Choose **Vs CPU**, select **8-ball** or **9-ball** and **Easy / Medium / Hard**. You break first; the same club rules below apply without any network connection. Click clear felt for ball in hand. Restart/R starts a new rack; P pauses both the match and CPU thinking. Results offer Rematch or Back to menu.
+
+The seeded CPU searches ghost-ball pocket lines, bank shots and safeties using cloned real-physics matches. Easy has fewer trials, roughly ±3° aim error and no spin; Medium uses ±1° and some spin; Hard uses ±0.3°, spin and next-shot position scoring. Search is capped at 6/16/28 simulations and yields between candidates so it does not block an entire decision into one frame. Ball-in-hand placement compares clear spots on a coarse grid.
+
+The cue-ball picker (or W/S, A/D, C to centre) applies follow, draw and side english. Spin resets after shooting; longer shots lose draw. A short fading white path previews cue travel after contact, including the first nearby cushion rebound, alongside the object-ball line.
+
 ## Online VS
 
 Choose **Online VS**, enter a name and select **8-ball** or **9-ball**, then create a room. Send the invite link or eight-character code to a friend; they open the game and join from a second device. The host picks the table and breaks. A legal scoring pot keeps the turn; fouls give ball in hand (click clear felt before shooting). Both players must request a rematch. Leaving/disconnecting freezes the match rather than silently continuing against an absent opponent.

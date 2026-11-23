@@ -1,4 +1,4 @@
-import { ball, moving, respot, simulate, strike, TABLE, POCKETS, type Ball, type PhysicsEvent } from './physics.ts';
+import { ball, moving, respot, simulate, strike, TABLE, POCKETS, validSpin, type Ball, type PhysicsEvent } from './physics.ts';
 import { practiceLayout } from './missions.ts';
 export type PoolMode='8-ball'|'9-ball';
 export type Player=0|1;
@@ -29,11 +29,11 @@ export class VersusMatch {
   get potted(){return this.balls.filter(b=>b.id>0&&!b.active).map(b=>b.id);}
   get lowest(){return Math.min(...this.balls.filter(b=>b.active&&b.id>0).map(b=>b.id));}
   groupRemaining(player:Player){return this.balls.filter(b=>b.active&&b.id!==0&&b.id!==8&&this.groups[player]===groupOf(b.id)).length;}
-  shoot(player:Player,angle:number,power:number){
-    if(player!==this.turn||!this.canShoot||!Number.isFinite(angle)||!Number.isFinite(power)||power<.1||power>1)return false;
+  shoot(player:Player,angle:number,power:number,spin:unknown={x:0,y:0}){
+    if(player!==this.turn||!this.canShoot||!Number.isFinite(angle)||!Number.isFinite(power)||power<.1||power>1||!validSpin(spin))return false;
     this.target=this.lowest;this.onEight=!!this.groups[player]&&this.groupRemaining(player)===0;
     this.firstContact=null;this.shotPots=[];this.railAfterContact=false;this.scratched=false;this.inShot=true;this.shots++;
-    this.balls.forEach(b=>b.banks=0);strike(this.balls[0],angle,power);this.reason='The runes are in motion.';return true;
+    this.balls.forEach(b=>b.banks=0);strike(this.balls[0],angle,power,spin);this.reason='The runes are in motion.';return true;
   }
   placeCue(player:Player,x:number,y:number){
     if(!this.ballInHand||player!==this.turn||this.inShot||this.winner!==null||!Number.isFinite(x)||!Number.isFinite(y))return false;
@@ -77,13 +77,14 @@ export class VersusMatch {
     if(!ownPot)this.turn=other;
     this.reason=ownPot?'Clean pot. Keep your turn.':'No scoring pot. The turn passes.';
   }
-  snapshot():MatchSnapshot{return {mode:this.mode,turn:this.turn,groups:[...this.groups],winner:this.winner,shots:this.shots,inShot:this.inShot,ballInHand:this.ballInHand,reason:this.reason,balls:this.balls.map(b=>({...b,trail:[]}))};}
+  snapshot():MatchSnapshot{return {mode:this.mode,turn:this.turn,groups:[...this.groups],winner:this.winner,shots:this.shots,inShot:this.inShot,ballInHand:this.ballInHand,reason:this.reason,balls:this.balls.map(b=>({...b,spin:{...b.spin??{x:0,y:0}},spinContact:b.spinContact??false,trail:[]}))};}
   applySnapshot(value:unknown):boolean{
     if(!value||typeof value!=='object')return false;const s=value as MatchSnapshot;
     if(s.mode!==this.mode||![0,1].includes(s.turn)||![null,0,1].includes(s.winner)||!Array.isArray(s.groups)||s.groups.length!==2||s.groups.some(g=>g!==null&&g!=='solids'&&g!=='stripes')||typeof s.inShot!=='boolean'||typeof s.ballInHand!=='boolean'||typeof s.reason!=='string'||s.reason.length>220||!Number.isInteger(s.shots)||s.shots<0||!Array.isArray(s.balls)||s.balls.length!==this.balls.length)return false;
     const ids=new Set<number>();
+    if(s.balls.some(b=>(b.spin!==undefined&&!validSpin(b.spin))||(b.spinContact!==undefined&&typeof b.spinContact!=='boolean')))return false;
     for(const b of s.balls){if(!this.balls.some(o=>o.id===b.id)||ids.has(b.id)||typeof b.active!=='boolean'||![b.x,b.y,b.vx,b.vy,b.banks].every(Number.isFinite)||b.x<0||b.x>1200||b.y<0||b.y>660||Math.abs(b.vx)>1700||Math.abs(b.vy)>1700)return false;ids.add(b.id);}
     this.turn=s.turn;this.groups=[...s.groups];this.winner=s.winner;this.shots=s.shots;this.inShot=s.inShot;this.ballInHand=s.ballInHand;this.reason=s.reason;
-    for(const b of s.balls)Object.assign(this.balls.find(o=>o.id===b.id)!,b,{trail:[]});return true;
+    for(const b of s.balls)Object.assign(this.balls.find(o=>o.id===b.id)!,b,{spin:b.spin?{...b.spin}:{x:0,y:0},spinContact:b.spinContact??false,trail:[]});return true;
   }
 }
