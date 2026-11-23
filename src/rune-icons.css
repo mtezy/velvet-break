@@ -1,0 +1,61 @@
+.rune-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  min-width: 10px;
+  min-height: 10px;
+  flex: none;
+  vertical-align: -.125em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rune-icon use[href="#rune-award"] {
+  fill: currentColor;
+  stroke: none;
+}
+
+.rune-icon use[href="#rune-award-empty"] {
+  opacity: .65;
+}
+
+.mission-stars .rune-icon + .rune-icon,
+#best-score .rune-icon + .rune-icon {
+  margin-inline-start: 3px;
+}
+
+.result-stars .rune-icon + .rune-icon {
+  margin-inline-start: .25em;
+}
+
+.rune-seal {
+  display: block;
+  color: var(--rune-gold);
+  font-size: 16px;
+  margin-bottom: 18px;
+}
+
+.rune-seal .rune-icon + .rune-icon,
+.club-stamp .rune-icon + .rune-icon {
+  margin-inline-start: .4em;
+}
+
+.vault-indicator {
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.table-room:not([open]) .vault-indicator .rune-close,
+.table-room[open] .vault-indicator .rune-add {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .rune-seal {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+}
