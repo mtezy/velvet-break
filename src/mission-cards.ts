@@ -27,7 +27,7 @@ export function missionCardsHtml(list:readonly Mission[],records:readonly (Missi
     const stars=entries.reduce((n,e)=>n+(records[e.i]?.stars??0),0),max=entries.length*3;
     const cards=entries.map(({m,i})=>{
       const record=records[i],current=i===selected,next=i===nextUp;
-      const status=record?`${record.stars} of 3 stars, best ${record.shots} ${record.shots===1?'shot':'shots'}`:'not played yet';
+      const status=record?`${record.stars} of 3 stars, best ${record.shots} ${record.shots===1?'shot':'shots'}, par ${m.par}`:`not played yet, par ${m.par}${next?', next up':''}`;
       const best=record?`Best ${record.shots} · par ${m.par}`:next?'Next up':`Par ${m.par}`;
       return `<button class="mission-card${current?' selected':''}${record?' cleared':''}${next?' next-up':''}" data-mission="${i}" aria-label="Mission ${i+1}: ${m.title}, ${m.difficulty}, ${missionRule(m)}, ${status}"${current?' aria-current="true"':''}><span class="card-map">${missionMap(m)}${record?'<span class="card-seal" aria-hidden="true">✓</span>':''}</span><span class="card-body"><span class="card-title"><span class="card-number">${String(i+1).padStart(2,'0')}</span>${m.title}</span><span class="card-rule">${m.difficulty} · ${missionRule(m)}</span><span class="card-foot"><span class="card-stars" aria-hidden="true">${missionStars(record)}</span><span class="card-best">${best}</span></span></span></button>`;
     }).join('');

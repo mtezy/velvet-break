@@ -27,3 +27,10 @@ test('mission rules read as short card labels',()=>{
   assert.equal(missionRule(missions[6]),'75s clock');
   assert.match(missionCardsHtml(missions,records,null),/<circle cx="1110" cy="90" r="24" class="called"\/>/);
 });
+
+test('card labels give screen readers par and the next-up hint',()=>{
+  const html=missionCardsHtml(missions,records,0);
+  assert.match(html,/aria-label="Mission 1: [^"]*best 1 shot, par \d+"/);
+  assert.match(html,/aria-label="Mission 3: [^"]*not played yet, par \d+, next up"/);
+  assert.match(html,/aria-label="Mission 4: [^"]*not played yet, par \d+"/);
+});
