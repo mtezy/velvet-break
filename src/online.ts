@@ -2,19 +2,22 @@ import type { Peer, DataConnection } from 'peerjs';
 import { VersusMatch, VS_RULES, type Player, type PoolMode } from './versus.ts';
 import { validSpin, type Spin, type PhysicsEvent } from './physics.ts';
 import { getTableDesign } from './tables.ts';
+import { AUDIBLE_IMPACT_SPEED, validTableImpact, type TableImpact } from './audio.ts';
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const cleanName=(name:unknown)=>typeof name==='string'?name.trim().slice(0,20)||'Rune wanderer':'Rune wanderer';
 const protocol=2;
 const roomId=(code:string)=>`velvet-runes-v${protocol}-${code}`;
 type RuleAction={type:'call-eight';pocket:number}|{type:'push-out'}|{type:'push-choice';passBack:boolean};
-interface OnlineHooks {change:()=>void;table:(id:string,locked:boolean)=>void;tableId:()=>string;events:(events:PhysicsEvent[])=>void;shot:(power:number)=>void;exit:()=>void;}
+interface OnlineHooks {change:()=>void;table:(id:string,locked:boolean)=>void;tableId:()=>string;events:(events:PhysicsEvent[])=>void;impact:(impact:TableImpact)=>void;shot:(power:number)=>void;exit:()=>void;}
 
 /** Invite-only WebRTC. The host owns physics, rules and turn validation. */
 export class OnlineGame {
   active=false;connected=false;isHost=false;player:Player=0;match:VersusMatch|null=null;
   peer:Peer|null=null;connection:DataConnection|null=null;names:[string,string]=['Host','Challenger'];code='';
   pending=false;private timer=0;private sentAt=0;private hostReady=false;private guestReady=false;private generation=0;
-  constructor(private hooks:OnlineHooks){
+  private hooks:OnlineHooks;
+  constructor(hooks:OnlineHooks){
+    this.hooks=hooks;
     el('online-create').addEventListener('click',()=>void this.create());el('online-join').addEventListener('click',()=>void this.join());
     el('online-leave').addEventListener('click',()=>{this.leave();this.hooks.exit();});
     el('online-rematch').addEventListener('click',()=>this.requestRematch());
@@ -95,10 +98,15 @@ export class OnlineGame {
         if(Array.isArray(data.names)&&data.names.length===2)this.names=[cleanName(data.names[0]),cleanName(data.names[1])];
         if(typeof data.table==='string'&&getTableDesign(data.table).id===data.table)this.hooks.table(data.table,true);
         el<HTMLSelectElement>('online-rules').value=data.mode;this.describeRules();
-        const pots=next.balls.filter(b=>!b.active&&previous.includes(b.id));this.hooks.events(pots.map(b=>({type:'pot',ball:b,speed:300})));
+        const pots=next.balls.filter(b=>!b.active&&previous.includes(b.id)).map(b=>({type:'pot' as const,ball:b,speed:300}));
+        if(data.tableAudio!==true)for(const pot of pots)this.hooks.impact(pot);
+        this.hooks.events(pots);
         this.refresh();
       }
       if(data.type==='shot'&&typeof data.power==='number'&&Number.isFinite(data.power)&&data.power>=.1&&data.power<=1)this.hooks.shot(data.power);
+      if(this.connected&&data.type==='impacts'&&Array.isArray(data.impacts)&&data.impacts.length<=3&&data.impacts.every(validTableImpact)){
+        for(const impact of data.impacts)this.hooks.impact(impact);
+      }
     }
   }
   refresh(){
@@ -109,10 +117,18 @@ export class OnlineGame {
     this.hooks.change();
   }
   fail(message:string){this.closePeer();this.busy(false);this.status(message);this.hooks.change();}
-  sendState(){if(!this.match)return;this.send({type:'state',mode:this.match.mode,match:this.match.snapshot(),names:this.names,table:this.hooks.tableId()});this.sentAt=performance.now();this.refresh();}
+  sendState(){if(!this.match)return;this.send({type:'state',mode:this.match.mode,match:this.match.snapshot(),names:this.names,table:this.hooks.tableId(),tableAudio:true});this.sentAt=performance.now();this.refresh();}
   tick(dt:number){
     if(!this.active||!this.connected||!this.isHost||!this.match)return [];
     const wasMoving=this.match.inShot,events=this.match.tick(dt);
+    if(events.length){
+      const impacts:TableImpact[]=[];
+      for(const type of ['pot','rail','collision'] as const){
+        const speed=events.reduce((max,e)=>e.type===type?Math.max(max,e.speed):max,-1);
+        if(speed>=(type==='pot'?0:AUDIBLE_IMPACT_SPEED))impacts.push({type,speed});
+      }
+      if(impacts.length)this.send({type:'impacts',impacts});
+    }
     if((wasMoving&&!this.match.inShot)||performance.now()-this.sentAt>(this.match.inShot?70:1800))this.sendState();return events;
   }
   shoot(angle:number,power:number,spin:Spin={x:0,y:0}){

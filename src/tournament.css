@@ -6,6 +6,9 @@
 #daily-entries li{display:grid;grid-template-columns:2rem minmax(0,1fr) auto;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--border)}
 #daily-entries li span{overflow-wrap:anywhere}
 #daily-entries li span:first-child,#daily-entries li strong{color:var(--accent)}
+.audio-controls{display:flex;align-items:center;gap:4px}
+.audio-controls #sound-button[aria-pressed="true"]{color:var(--accent)}
+.audio-controls input{width:clamp(42px,6vw,70px);height:28px;margin:0;accent-color:var(--accent);cursor:pointer}
 /* Match-first framing: the room stays atmospheric; the table stays legible. */
 .camera-centre{width:100%;padding:10px;border:1px solid #a6b8bc40;border-radius:5px;font-size:10px;margin-top:18px;color:#c7d2ce}.camera-panel>.primary-button{margin-top:12px}.view-toolbar #labels-button{font-size:8px;padding:9px 6px;background:#0d1a22e8;border:1px solid #a6b8bc25;border-radius:5px;color:#a4b7b9}.view-toolbar #labels-button[aria-pressed=true]{color:#d6be8a}
 :root{--rune-gold:#d6be8a;--text:#e8eee9;--text-muted:#9baeb1;--accent:#b4dacc}

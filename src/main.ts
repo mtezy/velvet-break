@@ -99,13 +99,14 @@ function shotEffect(value:number){
   audio.shot(value);const cue=currentBalls()[0];renderer.pulse(cue.x,cue.y,room.selected.trim,35+value*45,.45);
   if(renderer.effects){const card=document.querySelector('.table-card')!;card.classList.remove('portal-flash');requestAnimationFrame(()=>card.classList.add('portal-flash'));}
 }
-function handleEvents(events:import('./physics.ts').PhysicsEvent[]){
+function handleEvents(events:import('./physics.ts').PhysicsEvent[],playSound=true){
   for(const e of events){
+    if(playSound)audio.impact(e);
     if(e.type==='pot'){
       if(e.ball.id===0)toast(versusMatch()?'Scratch.':practice?'Scratch. Cue ball returns.':'Scratch. Cue ball returns. +1 shot penalty.');
-      else{audio.pot();shotPotCount++;if(e.ball.banks>0)toast('Bank shot! Beautifully played.');else if(shotPotCount===2)toast('Double pot! Precision in motion.');renderer.pulse(e.ball.x,e.ball.y,room.selected.trim,85,.85);if(renderer.effects)for(let i=0;i<22;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*180,vy:(Math.random()-.5)*180,life:1,color:i%3?BALL_COLORS[e.ball.id]:room.selected.trim});}
+      else{shotPotCount++;if(e.ball.banks>0)toast('Bank shot! Beautifully played.');else if(shotPotCount===2)toast('Double pot! Precision in motion.');renderer.pulse(e.ball.x,e.ball.y,room.selected.trim,85,.85);if(renderer.effects)for(let i=0;i<22;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*180,vy:(Math.random()-.5)*180,life:1,color:i%3?BALL_COLORS[e.ball.id]:room.selected.trim});}
     }else if(e.type==='collision'||e.type==='rail'){
-      audio.hit(e.speed);if(e.speed>110&&renderer.effects){renderer.pulse(e.ball.x,e.ball.y,e.type==='rail'?room.selected.trim:'#e9f6e9',e.type==='rail'?26:18,.28);for(let i=0;i<4;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*80,vy:(Math.random()-.5)*80,life:.55,color:room.selected.trim});}
+      if(e.speed>110&&renderer.effects){renderer.pulse(e.ball.x,e.ball.y,e.type==='rail'?room.selected.trim:'#e9f6e9',e.type==='rail'?26:18,.28);for(let i=0;i<4;i++)particles.push({x:e.ball.x,y:e.ball.y,vx:(Math.random()-.5)*80,vy:(Math.random()-.5)*80,life:.55,color:room.selected.trim});}
     }
   }
 }
@@ -326,7 +327,18 @@ $('title-cpu').addEventListener('click',()=>cpuDialog.showModal());
 $('guide-nav').addEventListener('click',()=>{cancelCharge();guide.showModal();});
 document.querySelector('.dialog-close')!.addEventListener('click',()=>guide.close());$('close-guide').addEventListener('click',()=>guide.close());
 $('hint-button').addEventListener('click',()=>toast(offline?VS_RULES[offline.match.mode]:practice?'Try a 70–90% break toward the head of the rack.':currentTip()));
-$('sound-button').addEventListener('click',()=>{const enabled=audio.toggle();$('sound-state').textContent=enabled?'ON':'OFF';$('sound-button').setAttribute('aria-label',enabled?'Mute sound':'Enable sound');$('sound-button').style.color=enabled?'var(--accent)':'';});
+const soundButton=$<HTMLButtonElement>('sound-button'),soundVolume=$<HTMLInputElement>('sound-volume');
+function updateSoundControls(){
+  const silent=audio.hostMuted||audio.volume===0;
+  $('sound-state').textContent=!audio.enabled?'OFF':silent?'MUTED':'ON';
+  soundButton.setAttribute('aria-pressed',String(audio.enabled));
+  soundButton.title=audio.hostMuted?'Muted by the host':audio.enabled?'Mute sound':'Enable sound';
+  soundVolume.setAttribute('aria-valuetext',`${soundVolume.value}%`);
+}
+soundVolume.value=String(Math.round(audio.volume*100));
+soundVolume.addEventListener('input',()=>{audio.setVolume(soundVolume.valueAsNumber/100);updateSoundControls();});
+soundButton.addEventListener('click',()=>{audio.toggle();updateSoundControls();});
+updateSoundControls();
 $('fullscreen-button').addEventListener('click',()=>{if(og.env.embedded&&og.env.connected){og.fullscreen.request();}else if(document.fullscreenElement){void document.exitFullscreen().catch(()=>{});}else{void document.documentElement.requestFullscreen().catch(()=>toast('Fullscreen is not available in this preview.'));}});
 $('resume-button').addEventListener('click',()=>setPause(false));
 pauseDialog.addEventListener('cancel',e=>{e.preventDefault();setPause(false);});
@@ -408,11 +420,11 @@ function frame(now:number){
   renderer.render({balls:titleOpen?titleBalls:currentBalls(),angle:cpuAiming?offline!.angle:angle,power:cpuAiming?offline!.shot!.power:power,spin:cpuAiming?offline!.shot!.spin:spin,charge:charging?1:0,aiming:(canShoot()||cpuAiming)&&!paused&&!hostPaused,targetPocket,particles:renderer.effects&&!titleOpen?particles:[],time:now});
   updateHud();requestAnimationFrame(frame);
 }
-online=new OnlineGame({change:()=>{lastHud='';updateHud();},table:(id,locked)=>{if(room.selected.id!==id)room.select(id);room.setLocked(locked);},tableId:()=>room.selected.id,events:handleEvents,shot:shotEffect,exit:()=>loadMission(index)});
+online=new OnlineGame({change:()=>{lastHud='';updateHud();},table:(id,locked)=>{if(room.selected.id!==id)room.select(id);room.setLocked(locked);},tableId:()=>room.selected.id,events:events=>handleEvents(events,false),impact:impact=>audio.impact(impact),shot:shotEffect,exit:()=>loadMission(index)});
 room.onSelect=()=>{$('title-table-name').textContent=room.selected.name;online?.tableChanged();};
 loadMission(0);setTitle(true);
 if(new URLSearchParams(location.search).has('room')){setTitle(false);online.enter();}
 else setupOnboarding(onboarding,$('title-play'));
 requestAnimationFrame(frame);
 // Platform handshake never blocks the first frame or standalone play.
-const platformReady=og.init({manifest}).then(()=>{og.ready();og.onPause(value=>{hostPaused=value;cancelCharge();if(value)stopReplay();});og.audio.onHostMute(value=>{audio.hostMuted=value;});}).catch(()=>{});
+const platformReady=og.init({manifest}).then(()=>{audio.setHostMuted(og.audio.muted);updateSoundControls();og.audio.onHostMute(value=>{audio.setHostMuted(value);updateSoundControls();});og.ready();og.onPause(value=>{hostPaused=value;cancelCharge();if(value)stopReplay();});}).catch(()=>{});
