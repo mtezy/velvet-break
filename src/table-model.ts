@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { POCKETS } from './physics.ts';
 import type { TableDesign } from './tables.ts';
-import { tableTexture, cushionGeometry, surfaceUV } from './surfaces.ts';
+import { cushionGeometry, surfaceUV } from './surfaces.ts';
+import { tableMaterials } from './table-materials.ts';
 
 function roundedShape(width:number,depth:number,r:number){
   const s=new THREE.Shape(),x=-width/2,y=-depth/2;
@@ -11,12 +12,9 @@ function roundedShape(width:number,depth:number,r:number){
 
 export function buildTableModel(design:TableDesign,highQuality=true){
   const group=new THREE.Group();group.name=`table-${design.id}`;
-  const woodMap=tableTexture(design.cabinet,design.pattern),wood=highQuality?new THREE.MeshPhysicalMaterial({map:woodMap,roughness:design.pattern==='lacquer'?.19:.34,metalness:design.pattern==='carbon'?.3:.04,envMapIntensity:.32,clearcoat:.5,clearcoatRoughness:.18}):new THREE.MeshStandardMaterial({map:woodMap,roughness:.34,metalness:.04,envMapIntensity:.32});
-  const trim=new THREE.MeshStandardMaterial({color:design.trim,metalness:.62,roughness:.28});
+  const {wood,trim,cloth,leather}=tableMaterials(design,highQuality);
   const dark=new THREE.MeshStandardMaterial({color:'#10151d',roughness:.64});
   const rubber=new THREE.MeshStandardMaterial({color:design.cushion,roughness:.86});
-  const clothMap=tableTexture(design.felt,'cloth'),cloth=highQuality?new THREE.MeshPhysicalMaterial({map:clothMap,roughness:.94,sheen:.3,sheenColor:new THREE.Color(design.felt).lerp(new THREE.Color('#eee7d3'),.2),sheenRoughness:.9}):new THREE.MeshStandardMaterial({map:clothMap,roughness:.96});
-  if(highQuality){const weaveCanvas=document.createElement('canvas');weaveCanvas.width=weaveCanvas.height=64;const wc=weaveCanvas.getContext('2d')!;wc.fillStyle='#8080ff';wc.fillRect(0,0,64,64);for(let i=0;i<64;i+=4){wc.fillStyle='#9280fc';wc.fillRect(i,0,1,64);wc.fillStyle='#808dfc';wc.fillRect(0,i,64,1);}const normal=new THREE.CanvasTexture(weaveCanvas);normal.wrapS=normal.wrapT=THREE.RepeatWrapping;normal.repeat.set(24,12);cloth.normalMap=normal;cloth.normalScale.set(.12,.12);}
   const glow=new THREE.MeshBasicMaterial({color:design.trim});
   function mesh(geometry:THREE.BufferGeometry,material:THREE.Material,x=0,y=0,z=0){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);group.add(m);return m;}
   function box(w:number,h:number,d:number,x:number,y:number,z:number,material:THREE.Material=wood){return mesh(new THREE.BoxGeometry(w,h,d),material,x,y,z);}
@@ -56,16 +54,21 @@ export function buildTableModel(design:TableDesign,highQuality=true){
     box(1.4,1,400,x<0?-568:568,25,0,trim);
     for(const z of [-130,0,130]){const diamond=box(7,1,4.5,x,26,z,trim);diamond.rotation.y=Math.PI/4;}
   }
-  const leather=new THREE.MeshStandardMaterial({color:'#171512',roughness:.72});
   const pocketBlack=new THREE.MeshBasicMaterial({color:'#010403',side:THREE.DoubleSide});
+  const capProfile=[[37,1.6],[36.3,2.5],[34.5,2.5],[33.8,1.6]].map(([r,y])=>new THREE.Vector2(r,y));
+  function lined(geometry:THREE.BufferGeometry,tone:(y:number)=>number){
+    const p=geometry.getAttribute('position'),colors=new Float32Array(p.count*3);
+    for(let i=0;i<p.count;i++)colors.fill(tone(p.getY(i)),i*3,i*3+3);
+    geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));return geometry;
+  }
   for(const p of POCKETS){
     const x=p.x-600,z=p.y-330;
-    const pocket=mesh(new THREE.CylinderGeometry(28,23,66,32,1,true),pocketBlack,x,-29,z);
-    pocket.name='recessed-pocket';
+    mesh(lined(new THREE.CylinderGeometry(28,24,25,32,1,true),y=>y>0?.36:.05),leather,x,-12.5,z);
     // Above the solid lower cabinet: the well must never reveal its apron.
     const bottom=mesh(new THREE.CircleGeometry(28,32),pocketBlack,x,-24,z);bottom.rotation.x=-Math.PI/2;
-    const rim=mesh(new THREE.RingGeometry(27,37,40),leather,x,1.8,z);rim.rotation.x=-Math.PI/2;
-    const lip=mesh(new THREE.TorusGeometry(28.5,1.7,6,40),leather,x,1,z);lip.rotation.x=-Math.PI/2;
+    const rim=mesh(lined(new THREE.RingGeometry(27,34,32),()=>.8),leather,x,1.8,z);rim.rotation.x=-Math.PI/2;
+    const lip=mesh(lined(new THREE.TorusGeometry(28.5,1.7,5,32),()=>.58),leather,x,1,z);lip.rotation.x=-Math.PI/2;
+    mesh(new THREE.LatheGeometry(capProfile,32),trim,x,0,z);
   }
   const kind=design.architecture;
   if(kind==='turned'||kind==='columns'||kind==='retro'){
@@ -132,6 +135,6 @@ export function batchStaticMeshes(group:THREE.Group){
 export function disposeTableModel(group:THREE.Group){
   const materials=new Set<THREE.Material>(),textures=new Set<THREE.Texture>();
   group.traverse(child=>{if(child instanceof THREE.Mesh){child.geometry.dispose();for(const material of Array.isArray(child.material)?child.material:[child.material])materials.add(material);}});
-  for(const material of materials){const standard=material as THREE.MeshStandardMaterial;for(const map of [standard.map,standard.normalMap])if(map)textures.add(map);material.dispose();}
+  for(const material of materials){const standard=material as THREE.MeshStandardMaterial;for(const map of [standard.map,standard.normalMap,standard.roughnessMap,standard.bumpMap])if(map)textures.add(map);material.dispose();}
   for(const map of textures)map.dispose();group.clear();
 }

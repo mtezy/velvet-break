@@ -1,15 +1,25 @@
 import * as THREE from 'three';
 
 /** Original, deterministic materials: no network textures or per-frame painting. */
-export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'lacquer'){
-  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=512;
-  const c=canvas.getContext('2d')!;c.fillStyle=base;c.fillRect(0,0,1024,512);
+export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'lacquer',detailed:boolean,grain=base){
+  const canvas=document.createElement('canvas'),scale=detailed?1:.5;canvas.width=1024*scale;canvas.height=512*scale;
+  const c=canvas.getContext('2d')!;c.scale(scale,scale);c.fillStyle=base;c.fillRect(0,0,1024,512);
   let seed=731;const random=()=>((seed=seed*16807%2147483647)/2147483647);
   if(kind==='cloth'){
     // The broad amber bounce is baked into the cloth so it needs no extra render pass.
     c.save();c.translate(512,212);c.scale(610,292);
     const lamp=c.createRadialGradient(0,0,0,0,0,1);lamp.addColorStop(0,'#ffc67965');lamp.addColorStop(.35,'#ffc6794d');lamp.addColorStop(.7,'#ffc6791e');lamp.addColorStop(1,'#ffc67900');c.fillStyle=lamp;c.fillRect(-1,-1,2,2);c.restore();
-    for(let i=0;i<65000;i++){c.fillStyle=i%2?'#ffffff0c':'#00000010';c.fillRect(random()*1024,random()*512,1,.65);}
+    const pitch=detailed?3:4;
+    for(const [color,offset] of [['#f4fff125',0],['#0012112f',1]] as const){
+      c.strokeStyle=color;c.lineWidth=1;c.beginPath();
+      for(let row=0;row*pitch<512;row++)for(let col=0;col*pitch<1024;col++){
+        if((row+col)%2!==offset)continue;
+        const x=col*pitch+random()*.8,y=row*pitch+random()*.8;
+        c.moveTo(x,y);c.lineTo(x+(offset?pitch*.8:.3),y+(offset?.3:pitch*.8));
+      }
+      c.stroke();
+    }
+    for(let i=0;i<(detailed?14000:6500);i++){c.fillStyle=i%2?'#ffffff15':'#00000019';c.fillRect(random()*1024,random()*512,1.8,.7);}
     const edge=c.createRadialGradient(512,256,0,512,256,580);edge.addColorStop(.58,'#001b2100');edge.addColorStop(1,'#001b2190');c.fillStyle=edge;c.fillRect(0,0,1024,512);
     // Cushion contact occlusion is baked into the nap, not a shadow-map pass.
     for(const [x,y,w,h,vertical,reverse] of [[38,40,22,432,0,0],[964,40,22,432,0,1],[38,40,948,18,1,0],[38,454,948,18,1,1]]){
@@ -19,8 +29,19 @@ export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'l
     c.strokeStyle='#d5e6df28';c.lineWidth=.8;c.beginPath();c.moveTo(256,15);c.lineTo(256,497);c.stroke();
     for(const x of [256,768]){c.fillStyle='#e5ece399';c.beginPath();c.arc(x,256,1.8,0,Math.PI*2);c.fill();}
     c.textAlign='center';c.fillStyle='#e0ede818';c.font='500 13px Arial';c.fillText('V E L V E T   B R E A K',512,352);c.font='6px Arial';c.fillText('P R E C I S I O N   B I L L I A R D S',512,369);
+  }else if(kind==='wood'){
+    const lines=detailed?480:260;
+    for(let i=0;i<lines;i++){
+      const y=random()*512,phase=y*.047;
+      c.strokeStyle=i%5===0?`${grain}44`:i%2?`${grain}22`:'#160b0759';
+      c.lineWidth=i%7===0?3+random()*8:.35+random()*1.7;
+      c.beginPath();c.moveTo(0,y);
+      c.bezierCurveTo(160,y+Math.cos(phase)*25,245,y-Math.sin(phase)*42,490,y+Math.sin(phase)*15);
+      c.bezierCurveTo(685,y+Math.cos(phase)*33,860,y-Math.cos(phase)*19,1024,y+Math.sin(phase)*9);
+      c.stroke();
+    }
   }else{
-    for(let i=0;i<420;i++){
+    for(let i=0;i<(detailed?420:220);i++){
       const y=random()*512;c.strokeStyle=i%4?'#08040128':'#ebc18a26';c.lineWidth=random()*1.8+.3;c.beginPath();c.moveTo(0,y);
       if(kind==='stone')c.bezierCurveTo(290,y-110,670,y+140,1024,y-80);
       else if(kind==='carbon'){c.lineTo(1024,y+420);c.lineWidth=2;}
@@ -29,7 +50,7 @@ export function tableTexture(base:string,kind:'cloth'|'wood'|'carbon'|'stone'|'l
     }
     const gloss=c.createLinearGradient(0,0,0,512);gloss.addColorStop(0,'#ffffff20');gloss.addColorStop(.23,'#ffffff00');gloss.addColorStop(.76,'#00000010');gloss.addColorStop(1,'#00000055');c.fillStyle=gloss;c.fillRect(0,0,1024,512);
   }
-  const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=4;return map;
+  const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=detailed?4:2;return map;
 }
 
 export function contactShadow(){
