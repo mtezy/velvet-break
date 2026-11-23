@@ -363,6 +363,8 @@ replayDialog.addEventListener('cancel',e=>{e.preventDefault();stopReplay();});
 window.addEventListener('keydown',e=>{
   if(onboarding.open)return;
   if(replay||e.code===skipKey){e.preventDefault();skipKey=e.code;stopReplay();return;}
+  // Results own native keyboard scrolling; keep R available for a quick retry.
+  if(!$('result-overlay').classList.contains('hidden')&&e.code!=='KeyR')return;
   if(e.code==='Escape'&&viewOptions.matches(':popover-open'))return;
   // Escape exits the editor even while a range or text input owns focus.
   if(e.code==='Escape'&&!guide.open&&!pauseDialog.open&&!dailyDialog.open){cancelCharge();cameraRig.close();cueLocker.inspect(false);document.body.classList.remove('missions-open','lobby-expanded');document.querySelector<HTMLDetailsElement>('.table-room')!.open=false;canvas.focus({preventScroll:true});return;}
