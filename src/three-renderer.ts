@@ -140,7 +140,7 @@ export class PoolRenderer {
     }
     if(this.titleMode){this.camera.position.set(1100,420,1390);if(w<h)this.camera.position.multiplyScalar(1.45);this.camera.lookAt(-70,20,-230);}else this.setView(this.view);this.dirty=true;if(this.renderer)this.renderer.setSize(w,h,false);else{this.canvas.width=w*2;this.canvas.height=h*2;}
   }
-  private sizePhoneLabels(camera:THREE.PerspectiveCamera){
+  private sizePhoneLabels(camera=this.camera){
     if(!this.viewportHeight)return;
     camera.updateMatrixWorld();
     const focalLength=this.viewportHeight*camera.projectionMatrix.elements[5]/2;
