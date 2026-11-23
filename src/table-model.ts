@@ -119,12 +119,25 @@ export function buildTableModel(design:TableDesign){
   const sc=shadowCanvas.getContext('2d')!;sc.scale(1,.5);const gradient=sc.createRadialGradient(64,64,4,64,64,64);gradient.addColorStop(0,'#000000b0');gradient.addColorStop(.65,'#00000060');gradient.addColorStop(1,'#00000000');sc.fillStyle=gradient;sc.fillRect(0,0,128,128);
   const shadow=mesh(new THREE.PlaneGeometry(1410,890),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}),0,-290,5);shadow.rotation.x=-Math.PI/2;
   // Static batching keeps eight detailed designs inexpensive on mobile GPUs.
+  batchStaticMeshes(group);
+  return group;
+}
+
+/** Extrusions have no index; primitives do. Normalize before material batching. */
+export function batchStaticMeshes(group:THREE.Group){
   group.updateMatrixWorld(true);
   const batches=new Map<THREE.Material,THREE.BufferGeometry[]>();
-  for(const child of group.children){const m=child as THREE.Mesh,g=m.geometry.clone().applyMatrix4(m.matrixWorld),material=m.material as THREE.Material;const batch=batches.get(material)??[];batch.push(g);batches.set(material,batch);m.geometry.dispose();}
+  for(const child of group.children){
+    const m=child as THREE.Mesh,copy=m.geometry.clone(),g=copy.index?copy.toNonIndexed():copy;
+    if(g!==copy)copy.dispose();g.applyMatrix4(m.matrixWorld);
+    const material=m.material as THREE.Material,batch=batches.get(material)??[];batch.push(g);batches.set(material,batch);m.geometry.dispose();
+  }
   group.clear();
-  for(const [material,geometries]of batches){const merged=mergeGeometries(geometries);if(merged)group.add(new THREE.Mesh(merged,material));for(const g of geometries)g.dispose();}
-  return group;
+  for(const [material,geometries]of batches){
+    const merged=mergeGeometries(geometries);
+    if(merged){group.add(new THREE.Mesh(merged,material));for(const g of geometries)g.dispose();}
+    else for(const g of geometries)group.add(new THREE.Mesh(g,material));
+  }
 }
 
 export function disposeTableModel(group:THREE.Group){
