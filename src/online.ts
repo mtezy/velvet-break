@@ -15,7 +15,9 @@ export class OnlineGame {
   active=false;connected=false;isHost=false;player:Player=0;match:VersusMatch|null=null;
   peer:Peer|null=null;connection:DataConnection|null=null;names:[string,string]=['Host','Challenger'];code='';
   pending=false;private timer=0;private sentAt=0;private hostReady=false;private guestReady=false;private generation=0;
-  constructor(private hooks:OnlineHooks){
+  private hooks:OnlineHooks;
+  constructor(hooks:OnlineHooks){
+    this.hooks=hooks;
     el('online-create').addEventListener('click',()=>void this.create());el('online-join').addEventListener('click',()=>void this.join());
     el('online-leave').addEventListener('click',()=>{this.leave();this.hooks.exit();});
     el('online-rematch').addEventListener('click',()=>this.requestRematch());
@@ -96,7 +98,9 @@ export class OnlineGame {
         if(Array.isArray(data.names)&&data.names.length===2)this.names=[cleanName(data.names[0]),cleanName(data.names[1])];
         if(typeof data.table==='string'&&getTableDesign(data.table).id===data.table)this.hooks.table(data.table,true);
         el<HTMLSelectElement>('online-rules').value=data.mode;this.describeRules();
-        const pots=next.balls.filter(b=>!b.active&&previous.includes(b.id));this.hooks.events(pots.map(b=>({type:'pot',ball:b,speed:300})));
+        const pots=next.balls.filter(b=>!b.active&&previous.includes(b.id)).map(b=>({type:'pot' as const,ball:b,speed:300}));
+        if(data.tableAudio!==true)for(const pot of pots)this.hooks.impact(pot);
+        this.hooks.events(pots);
         this.refresh();
       }
       if(data.type==='shot'&&typeof data.power==='number'&&Number.isFinite(data.power)&&data.power>=.1&&data.power<=1)this.hooks.shot(data.power);
@@ -113,7 +117,7 @@ export class OnlineGame {
     this.hooks.change();
   }
   fail(message:string){this.closePeer();this.busy(false);this.status(message);this.hooks.change();}
-  sendState(){if(!this.match)return;this.send({type:'state',mode:this.match.mode,match:this.match.snapshot(),names:this.names,table:this.hooks.tableId()});this.sentAt=performance.now();this.refresh();}
+  sendState(){if(!this.match)return;this.send({type:'state',mode:this.match.mode,match:this.match.snapshot(),names:this.names,table:this.hooks.tableId(),tableAudio:true});this.sentAt=performance.now();this.refresh();}
   tick(dt:number){
     if(!this.active||!this.connected||!this.isHost||!this.match)return [];
     const wasMoving=this.match.inShot,events=this.match.tick(dt);
