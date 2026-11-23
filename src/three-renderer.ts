@@ -45,7 +45,9 @@ export class PoolRenderer {
   clubRoom=new THREE.Group();titleMode=false;quality:'auto'|'high'|'economy'='auto';software=false;renderScale=1;averageFrame=.016;qualityFrames=0;
   cuePath=new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(241*2*3),3)).setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(241*2*4),4)).setIndex(Array.from({length:240},(_,i)=>[i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2]).flat()),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
   cueStop=new THREE.Mesh(new THREE.RingGeometry(4,6,32),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:.95,depthTest:false,depthWrite:false}));
-  constructor(public canvas:HTMLCanvasElement){
+  canvas:HTMLCanvasElement;
+  constructor(canvas:HTMLCanvasElement){
+    this.canvas=canvas;
     const lineMaterial=new THREE.LineDashedMaterial({color:0xc5eedc,dashSize:5,gapSize:8,transparent:true,opacity:.55,depthTest:false});
     this.aim=new THREE.Line(new THREE.BufferGeometry(),lineMaterial);this.targetLine=new THREE.Line(new THREE.BufferGeometry(),lineMaterial.clone());
     this.ghost=new THREE.Mesh(new THREE.RingGeometry(11.5,12.5,48),new THREE.MeshBasicMaterial({color:0xe1f5de,side:THREE.DoubleSide,transparent:true,opacity:.6,depthTest:false}));
