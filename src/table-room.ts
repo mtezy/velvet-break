@@ -17,6 +17,9 @@ export class TableRoom {
     try{const stored=localStorage.getItem('velvet-break-fx-v1');if(stored!==null)effects=stored==='on'&&!reduced;}catch{}
     const updateEffects=()=>{renderer.effects=effects;element('effects-button').setAttribute('aria-pressed',String(effects));element('effects-button').textContent=effects?'Effects on':'Effects off';document.body.classList.toggle('effects-off',!effects);};
     updateEffects();element('effects-button').addEventListener('click',()=>{effects=!effects;updateEffects();try{localStorage.setItem('velvet-break-fx-v1',effects?'on':'off');}catch{}});
+    let quality:'auto'|'high'|'economy'='auto';try{const saved=localStorage.getItem('velvet-break-quality-v1');if(saved==='high'||saved==='economy')quality=saved;}catch{}
+    const updateQuality=()=>{renderer.setQuality(quality);element('quality-button').textContent=`Quality: ${quality[0].toUpperCase()+quality.slice(1)}`;element('quality-button').setAttribute('aria-label',`Rendering quality ${quality}. Click to change.`);};updateQuality();
+    element('quality-button').addEventListener('click',()=>{quality=quality==='auto'?'high':quality==='high'?'economy':'auto';updateQuality();try{localStorage.setItem('velvet-break-quality-v1',quality);}catch{}});
   }
   select(id:string,notify=false){
     this.selected=getTableDesign(id);this.renderer.setTable(this.selected);
@@ -25,8 +28,8 @@ export class TableRoom {
     try{localStorage.setItem('velvet-break-table-v1',this.selected.id);}catch{}
     if(notify)this.onSelect?.(this.selected);
   }
-  setView(view:'club'|'overhead'){
-    this.renderer.setView(view);for(const v of ['club','overhead'])element(`view-${v}`).setAttribute('aria-pressed',String(view===v));
+  setView(view:'club'|'overhead'|'custom'){
+    this.renderer.setView(view);for(const v of ['club','overhead','custom'])element(`view-${v}`).setAttribute('aria-pressed',String(view===v));
   }
   setLocked(locked:boolean){for(const button of document.querySelectorAll<HTMLButtonElement>('[data-table]'))button.disabled=locked;}
 }

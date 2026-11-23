@@ -29,13 +29,14 @@ function roundedShape(width:number,depth:number,r:number){
   s.moveTo(x+r,y);s.lineTo(x+width-r,y);s.quadraticCurveTo(x+width,y,x+width,y+r);s.lineTo(x+width,y+depth-r);s.quadraticCurveTo(x+width,y+depth,x+width-r,y+depth);s.lineTo(x+r,y+depth);s.quadraticCurveTo(x,y+depth,x,y+depth-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);return s;
 }
 
-export function buildTableModel(design:TableDesign){
+export function buildTableModel(design:TableDesign,highQuality=true){
   const group=new THREE.Group();group.name=`table-${design.id}`;
-  const wood=new THREE.MeshStandardMaterial({map:texture(design),roughness:design.pattern==='lacquer'?.24:.43,metalness:design.pattern==='carbon'?.45:.08});
+  const woodMap=texture(design),wood=highQuality?new THREE.MeshPhysicalMaterial({map:woodMap,roughness:design.pattern==='lacquer'?.19:.32,metalness:design.pattern==='carbon'?.45:.04,clearcoat:.55,clearcoatRoughness:.18}):new THREE.MeshStandardMaterial({map:woodMap,roughness:.38,metalness:.05});
   const trim=new THREE.MeshStandardMaterial({color:design.trim,metalness:.62,roughness:.28});
   const dark=new THREE.MeshStandardMaterial({color:'#10151d',roughness:.64});
   const rubber=new THREE.MeshStandardMaterial({color:design.cushion,roughness:.94});
-  const cloth=new THREE.MeshStandardMaterial({map:texture(design,true),roughness:.98});
+  const clothMap=texture(design,true),cloth=highQuality?new THREE.MeshPhysicalMaterial({map:clothMap,roughness:.94,sheen:.45,sheenColor:new THREE.Color(design.felt).lerp(new THREE.Color('#eee7d3'),.35),sheenRoughness:.9}):new THREE.MeshStandardMaterial({map:clothMap,roughness:.98});
+  if(highQuality){const weaveCanvas=document.createElement('canvas');weaveCanvas.width=weaveCanvas.height=64;const wc=weaveCanvas.getContext('2d')!;wc.fillStyle='#8080ff';wc.fillRect(0,0,64,64);for(let i=0;i<64;i+=4){wc.fillStyle='#9280fc';wc.fillRect(i,0,1,64);wc.fillStyle='#808dfc';wc.fillRect(0,i,64,1);}const normal=new THREE.CanvasTexture(weaveCanvas);normal.wrapS=normal.wrapT=THREE.RepeatWrapping;normal.repeat.set(24,12);cloth.normalMap=normal;cloth.normalScale.set(.12,.12);}
   const glow=new THREE.MeshBasicMaterial({color:design.trim});
   function mesh(geometry:THREE.BufferGeometry,material:THREE.Material,x=0,y=0,z=0){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);group.add(m);return m;}
   function box(w:number,h:number,d:number,x:number,y:number,z:number,material:THREE.Material=wood){return mesh(new THREE.BoxGeometry(w,h,d),material,x,y,z);}
@@ -114,10 +115,10 @@ export function buildTableModel(design:TableDesign){
     box(760,34,60,0,-180,0,trim);
   }
   // Floor and a soft baked contact shadow cost no shadow-map render passes.
-  slab(1490,1000,8,-302,new THREE.MeshStandardMaterial({color:design.floor,roughness:.9}),65);
+  // The cabinet now stands on the club's floor, not a showroom display slab.
   const shadowCanvas=document.createElement('canvas');shadowCanvas.width=128;shadowCanvas.height=64;
   const sc=shadowCanvas.getContext('2d')!;sc.scale(1,.5);const gradient=sc.createRadialGradient(64,64,4,64,64,64);gradient.addColorStop(0,'#000000b0');gradient.addColorStop(.65,'#00000060');gradient.addColorStop(1,'#00000000');sc.fillStyle=gradient;sc.fillRect(0,0,128,128);
-  const shadow=mesh(new THREE.PlaneGeometry(1410,890),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}),0,-290,5);shadow.rotation.x=-Math.PI/2;
+  const shadow=mesh(new THREE.PlaneGeometry(1510,1080),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}),0,-281,5);shadow.rotation.x=-Math.PI/2;
   // Static batching keeps eight detailed designs inexpensive on mobile GPUs.
   batchStaticMeshes(group);
   return group;
@@ -143,6 +144,6 @@ export function batchStaticMeshes(group:THREE.Group){
 export function disposeTableModel(group:THREE.Group){
   const materials=new Set<THREE.Material>(),textures=new Set<THREE.Texture>();
   group.traverse(child=>{if(child instanceof THREE.Mesh){child.geometry.dispose();for(const material of Array.isArray(child.material)?child.material:[child.material])materials.add(material);}});
-  for(const material of materials){const map=(material as THREE.MeshStandardMaterial).map;if(map)textures.add(map);material.dispose();}
+  for(const material of materials){const standard=material as THREE.MeshStandardMaterial;for(const map of [standard.map,standard.normalMap])if(map)textures.add(map);material.dispose();}
   for(const map of textures)map.dispose();group.clear();
 }

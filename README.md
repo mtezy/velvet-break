@@ -4,6 +4,12 @@ A late-night pool club. Twelve missions. One perfect shot.
 
 ## Runebound update
 
+The **Lantern Guild** presentation replaces the page-like dashboard with a full-viewport, original 3D pool hall: timber floorboards and trusses, leaded windows, a back bar and hearth, brass pool lamps, cue racks, cups, candles and low-poly background guests. The title screen previews the actual room/table; its arrows inspect all eight builds before entry. Gameplay uses a compact floating HUD. **Missions** opens the campaign drawer, **Loadout** opens the table/cue vault, and **Menu** returns to the title without advancing a solo mission's clock. Online room controls collapse after connection (on phones, tap **Online VS** to reopen them).
+
+**Angle** opens a camera editor with Club/Overhead/Rail-eye presets and orbit, elevation and distance sliders. Save a personal view, restore it with **My angle**, or Reset to Club. The view refits portrait screens; it never changes table collision bounds. Six cosmetic cues—Ashborne, Nightglass, Sunforge, Ivory Regent, Crimson Oath and Aether—have distinct shafts, textured wraps/butts, metal collars and faceted inlays. Equip one under **Loadout → Cues** or inspect/turn its enlarged 3D model. Cue and camera choices persist locally; cues never change shot power or online rules. Finish inspection before shooting.
+
+Warm practical/studio lighting, cool window fill, atmospheric fog and a vignette establish depth without a full-screen postprocessing chain. Hardware renderers use clearcoat ball materials; software renderers use the lighter enamel shader. **Quality: Auto** detects common software renderers and reduces resolution under sustained moving-frame load; High and Economy are manual overrides. Static scenes are cached. All scene models, textures and title treatments are generated locally; no reference-game assets are copied or fetched. Hardware-GPU quality/performance must still be checked on a real device.
+
 Eight selectable custom builds now have actual cabinet depth, recessed pockets, legs, supports and a floor stage: The Heritage (turned walnut), Afterglow (carbon trestle), Glacier (twin pedestal), Sovereign (fluted columns), Desert Social (flared teak), Obsidian (marble monolith), Kyoto House (ash beams), and Apex Arena (alloy tournament chassis). Table choice persists independently of campaign progress and does not alter collision bounds.
 
 The rune-forged interface includes a relic vault, perspective 3D/overhead camera controls, right-drag orbit and wheel zoom. Balls have enamel reflections, texture-mapped numbers/stripes that roll with the sphere, and a spotted cue ball. Optional shot runes, impact sparks, trails, pocket rings and victory effects respect reduced-motion defaults.
@@ -48,6 +54,10 @@ npm start
 | Orbit / zoom | Right-drag / scroll over table |
 | Precision camera | Overhead button; Reset view restores 3D club |
 | Ball in hand (VS) | Click an empty spot on felt before shooting |
+| Mission/loadout drawers | Missions / Loadout in the top navigation; Escape closes |
+| Personal camera | Angle editor → Save my angle; My angle restores |
+| Custom cues | Loadout → Cues; Inspect cue in 3D; Finish inspection |
+| Rendering quality | Auto → High → Economy button |
 
 The first mission starts aimed at the ball so a 35% shot is a useful introduction. A scratch returns the cue ball and costs an extra shot. Bank objectives require the **object** ball to touch a rail in the same shot it drops. Called-pocket and ordered-pot rules are explained before the shot. Any mission can be selected, so players can explore without grinding unlocks. Stars and personal-best shot counts are kept only in this browser; clearing browser storage removes them. Sound is off until enabled.
 
