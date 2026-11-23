@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BALL_COLORS, TABLE, POCKETS, aimTrace, predictCuePath } from './physics.ts';
+import { BALL_COLORS, TABLE, POCKETS, aimTrace, predictCuePath, type PhysicsEvent } from './physics.ts';
 import { render as renderFallback, type RenderState } from './render.ts';
 import { getTableDesign, type TableDesign } from './tables.ts';
 import { buildTableModel, disposeTableModel } from './table-model.ts';
@@ -12,6 +12,7 @@ import { getCueDesign, type CueDesign } from './cues.ts';
 import { contactShadow, placeBallShadow } from './surfaces.ts';
 import { BALL_LABEL_SCALE, mobileBallLabelScale, type ProjectedBallLabel } from './ball-labels.ts';
 import { titleCameraPosition } from './title-camera.ts';
+import { BreakFlash, PocketHighlights } from './highlight-effects.ts';
 
 interface BallLabel extends ProjectedBallLabel { sprite:THREE.Sprite; texture:THREE.CanvasTexture; }
 
@@ -32,10 +33,12 @@ export class PoolRenderer {
   renderer:THREE.WebGLRenderer|null=null;
   scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
   private titleCamera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
-  private titleMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  private reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   private titleStarted:number|undefined;
   private lastTitleRender=-Infinity;
   private replayCamera=new THREE.PerspectiveCamera(38,1200/780,10,12000);
+  private pocketHighlights?:PocketHighlights;
+  private breakFlash?:BreakFlash;
   private liveRotations:Map<number,THREE.Quaternion>|undefined;
   controls:OrbitControls|null=null;tableModel=new THREE.Group();design:TableDesign=getTableDesign('heritage');
   dirty=true;lastRenderKey='';view:'club'|'overhead'|'custom'='club';effects=true;customCamera:CameraSettings={...DEFAULT_CAMERA};
@@ -63,10 +66,12 @@ export class PoolRenderer {
     this.targetRing=new THREE.Mesh(new THREE.RingGeometry(17.5,18.3,48),new THREE.MeshBasicMaterial({color:0xf3ce8a,side:THREE.DoubleSide,transparent:true,opacity:.7,depthTest:false}));
     this.calledRing=new THREE.Mesh(new THREE.TorusGeometry(31,1.8,8,64),new THREE.MeshBasicMaterial({color:0xedc783}));
     const sparkCanvas=document.createElement('canvas');sparkCanvas.width=sparkCanvas.height=32;const sc=sparkCanvas.getContext('2d')!,sparkGlow=sc.createRadialGradient(16,16,0,16,16,16);sparkGlow.addColorStop(0,'#ffffffff');sparkGlow.addColorStop(.25,'#ffffffcc');sparkGlow.addColorStop(1,'#ffffff00');sc.fillStyle=sparkGlow;sc.fillRect(0,0,32,32);
-    this.sparks=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({map:new THREE.CanvasTexture(sparkCanvas),size:7,vertexColors:true,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+    const sparkMap=new THREE.CanvasTexture(sparkCanvas);
+    this.sparks=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({map:sparkMap,size:7,vertexColors:true,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
     try{this.renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'high-performance'});}catch{this.fallback=canvas.getContext('2d');canvas.dataset.renderer='canvas';return;}
     canvas.dataset.renderer='webgl2';
     const gl=this.renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');this.software=!!debug&&/swiftshader|llvmpipe|software/i.test(String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)));
+    this.pocketHighlights=new PocketHighlights(this.scene,sparkMap);
     // Contact shadows keep the 3D depth without a costly full-scene shadow pass.
     this.renderScale=this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer.setPixelRatio(this.renderScale);this.renderer.shadowMap.enabled=false;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.0;
@@ -91,7 +96,7 @@ export class PoolRenderer {
     // radiance map too. This is not a live reflection or an extra frame pass.
     const pmrem=new THREE.PMREMGenerator(this.renderer),studio=new RoomEnvironment();this.scene.environment=pmrem.fromScene(studio,.025).texture;this.scene.environmentIntensity=.4;studio.dispose();pmrem.dispose();
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
-    this.titleMotion.addEventListener('change',()=>{this.titleStarted=undefined;this.dirty=true;});
+    this.reducedMotion.addEventListener('change',()=>{this.titleStarted=undefined;this.dirty=true;});
     this.resize();
   }
   material(color:string|number,roughness=.7,metalness=0){return new THREE.MeshStandardMaterial({color,roughness,metalness});}
@@ -115,6 +120,17 @@ export class PoolRenderer {
   }
   setQuality(value:'auto'|'high'|'economy'){
     this.quality=value;this.renderScale=value==='economy'?.6:value==='high'?Math.min(window.devicePixelRatio,1.5):this.software?.72:Math.min(window.devicePixelRatio,1.5);this.renderer?.setPixelRatio(this.renderScale);this.dirty=true;
+  }
+  highlightPocket(event:PhysicsEvent,color:string){
+    if(this.effects)this.pocketHighlights?.pot(event,color,performance.now());
+  }
+  highlightBreak(){
+    if(!this.effects||this.reducedMotion.matches)return;
+    (this.breakFlash??=new BreakFlash(this.canvas)).start(this.quality==='economy');
+  }
+  clearHighlights(){
+    this.pocketHighlights?.clear();
+    this.breakFlash?.clear();
   }
   pulse(x:number,y:number,color:string,radius=60,duration=.65){
     if(!this.effects||!this.renderer)return;
@@ -195,8 +211,9 @@ export class PoolRenderer {
       }
       return;
     }
-    const title=!replay&&this.titleMode,animateTitle=title&&!this.titleMotion.matches;
-    const camera=replay?this.replayCamera:title?this.titleCamera:this.camera;
+    const title=!replay&&this.titleMode,animateTitle=title&&!this.reducedMotion.matches;
+    const animateHighlight=this.pocketHighlights?.update(state.time,this.camera,this.effects&&!replay&&!this.titleMode&&!this.cueInspection,this.quality==='economy',this.reducedMotion.matches);
+    const camera=replay?this.replayCamera:title?this.titleCamera:this.pocketHighlights?.view??this.camera;
     if(replay){
       const x=(replay.x-600)*.9,z=(replay.y-330)*.9;
       const angle=.32+replay.progress*.5,distance=(1000-replay.progress*240)*Math.max(1,.75/this.camera.aspect);
@@ -214,7 +231,7 @@ export class PoolRenderer {
     }
     const dt=this.lastTime?Math.min(.2,(state.time-this.lastTime)/1000):0;this.lastTime=state.time;
     const renderKey=[this.design.id,this.cueDesign.id,this.cueInspection,this.cueSpin,state.angle,state.power,state.spin?.x,state.spin?.y,state.charge,state.aiming,state.targetPocket,...state.balls.map(b=>`${b.id}:${b.x.toFixed(2)}:${b.y.toFixed(2)}:${b.active}`)].join('|');
-    const unchanged=!replay&&!changedReplay&&!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length;
+    const unchanged=!replay&&!changedReplay&&!this.dirty&&renderKey===this.lastRenderKey&&!state.particles.length&&!this.pulses.length&&!animateHighlight;
     if(unchanged&&(!animateTitle||state.time-this.lastTitleRender<1000/(this.quality==='high'?30:24)-1))return;
     this.lastRenderKey=renderKey;this.dirty=false;
     const isMoving=animateTitle||!!replay||state.balls.some(b=>b.active&&Math.hypot(b.vx,b.vy)>10);
